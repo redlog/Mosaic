@@ -19,8 +19,10 @@ restored as a single JSON file.
 
 ## Status
 
-Phases 0 and 1 complete — toolchain plus the domain core (geometry, color science,
-parts catalog, palette, seeded RNG). 148 tests. No image pipeline or UI yet.
+Phases 0–2 complete — toolchain, domain core (geometry, color science, parts catalog,
+palette, seeded RNG), and the image pipeline (crop, orient, linear-light downsample,
+adjustments, quantization). An image becomes a color-mapped grid entirely in Node
+tests. No tiling or UI yet.
 
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan
@@ -51,10 +53,13 @@ Requires Node 20+ (developed on 22).
 
 ### Layout
 
-`src/lego/` holds the domain logic: geometry, color math, quantization, the two tilers,
-the parts list, and the exports. It is pure TypeScript with no React and no DOM access,
-so it is unit-testable in Node and reusable from a CLI later. Anything that touches the
-DOM belongs in `src/components/`.
+`src/lego/` holds the domain logic: geometry, color math, framing, quantization, the two
+tilers, the parts list, and the exports. It is pure TypeScript with no React and no DOM
+access, so it is unit-testable in Node and reusable from a CLI later.
+
+`src/image/` holds the one stage that genuinely needs the DOM — decoding a `File` into
+pixels — and stays deliberately thin. Anything else that touches the DOM belongs in
+`src/components/`.
 
 ## A note on the color data
 

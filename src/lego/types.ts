@@ -76,6 +76,55 @@ export interface PaletteFile {
   colors: PaletteColorData[];
 }
 
+/** Decoded source pixels: RGBA, 8-bit, row-major. */
+export interface SourceImage {
+  width: number;
+  height: number;
+  /** Length is `width * height * 4`. */
+  data: Uint8ClampedArray;
+}
+
+/**
+ * Crop rectangle in normalized source coordinates (0-1).
+ *
+ * Normalized rather than in pixels so it survives a change of source
+ * resolution and serializes into a project file unambiguously.
+ */
+export interface CropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export type Rotation = 0 | 90 | 180 | 270;
+
+/** Orientation fixes applied before cropping. Rotation is clockwise. */
+export interface Transform {
+  rotate: Rotation;
+  flipH: boolean;
+  flipV: boolean;
+}
+
+/**
+ * The downsampled mosaic before quantization: one linear-light RGB triple per
+ * cell, row-major. Linear rather than sRGB because every averaging operation
+ * upstream of this depends on it (DESIGN.md §6.2).
+ */
+export interface CellBuffer {
+  cols: number;
+  rows: number;
+  /** Length is `cols * rows * 3`, channels in 0-1. */
+  data: Float32Array;
+}
+
+/** Image adjustments, each -100 to +100, 0 being no change. */
+export interface Adjustments {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+}
+
 /**
  * A quantized mosaic: one palette index per cell, row-major.
  * `-1` marks a cell with no assigned color, which should not survive

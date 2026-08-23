@@ -1,6 +1,6 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Phase 0 (toolchain) complete, Phase 1 next
+**Status:** design approved; Phases 0-2 complete (toolchain, domain core, image pipeline)
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -161,7 +161,7 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  ├─ palette.ts             palette loading, filtering, availability
    │  ├─ palette.data.json      the color table (generated, hand-correctable)
    │  ├─ parts.ts               brick shape catalog + design IDs
-   │  ├─ frame.ts               crop → linear-light cell averages
+   │  ├─ frame.ts               crop, orient → linear-light cell averages
    │  ├─ adjust.ts              brightness / contrast / saturation
    │  ├─ quantize.ts            nearest-color mapping + dithering
    │  ├─ tile-flat.ts           pips-out tiler (randomized greedy + restarts)
@@ -173,6 +173,8 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  ├─ export-csv.ts
    │  ├─ export-bricklink.ts
    │  └─ rng.ts                 seeded PRNG (mulberry32)
+   ├─ image/
+   │  └─ decode.ts              File → pixels (the only DOM-dependent stage)
    ├─ worker/
    │  └─ mosaic.worker.ts
    ├─ state/
@@ -359,6 +361,11 @@ Tiling        list of placements
 
 ### 6.1 Decode
 
+Decoding is the only stage that needs the DOM, so it lives in `src/image/decode.ts`
+rather than `src/lego/`, keeping the domain core testable in Node. It stays thin and
+hands off every decision it can to a pure function — the pre-shrink factor, for
+instance, comes from `pickDownscaleFactor` in `frame.ts`.
+
 ```ts
 createImageBitmap(file, { imageOrientation: 'from-image' });
 ```
@@ -394,11 +401,25 @@ fraction of the cost. Documented here so the tradeoff is deliberate rather than 
 
 ### 6.3 Adjustments
 
-Brightness, contrast, saturation, each −100..+100, applied in linear light, saturation
-via luminance-preserving interpolation toward the Rec. 709 luma. These matter more than
-they sound: the LEGO palette is small and highly saturated, so a flat photo maps into a
-narrow band of colors and a contrast bump often improves the result more than any
-algorithm change.
+Brightness, contrast, saturation, each −100..+100. These matter more than they sound:
+the LEGO palette is small and highly saturated, so a flat photo maps into a narrow band
+of colors and a contrast bump often improves the result more than any algorithm change.
+
+**Applied in gamma-encoded space, not linear light** — a deliberate departure from the
+rest of the pipeline. Averaging demands linear light; perceptual controls do not, and
+users expect these three to behave the way every photo editor behaves. The deciding
+case is the contrast pivot: perceptual mid-gray is sRGB 128, but linear 0.5 sits at
+sRGB 188, nearly white. Pivoting there would drag almost the whole image down into
+shadow rather than spreading it about the middle. Rec. 709 luma coefficients are
+likewise defined on gamma-encoded R′G′B′, so saturation lands in the right space too.
+The cell buffer is converted out of and back into linear light around these operations,
+which costs two transfer-function evaluations per channel per _cell_ — negligible, since
+this runs on the grid rather than on source pixels.
+
+Brightness lifts toward white (`v + t(1−v)`) rather than adding a flat offset, so both
+endpoints stay pinned and highlights do not blow out the moment the slider moves.
+Contrast is a pivot scale about sRGB 0.5, range 0–2. Saturation interpolates about luma,
+range 0–2. Order is brightness, contrast, saturation.
 
 ### 6.4 Quantization
 

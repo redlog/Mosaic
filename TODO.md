@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0 and 1 complete. Start at Phase 2.1.
+**Current status:** Phases 0-2 complete. Start at Phase 3.1.
 
 ---
 
@@ -127,40 +127,63 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 
 ---
 
-## Phase 2 — Image pipeline
+## Phase 2 — Image pipeline ✅
 
-### 2.1 Decode
+### 2.1 Decode — `src/image/decode.ts` ✅
 
-- [ ] `decodeImage(file)` via `createImageBitmap(file, { imageOrientation: 'from-image' })`
-- [ ] Reject non-PNG/JPEG with a typed error
-- [ ] Warn above 40 MP, offer downscale
-- [ ] Composite transparency over a configurable background
+- [x] `decodeImageFile(file)` via `createImageBitmap(file, { imageOrientation: 'from-image' })`
+- [x] Reject non-PNG/JPEG with a typed `ImageDecodeError`
+- [x] Integer pre-shrink above 8 MP; `LARGE_IMAGE_PIXELS` threshold exported for the UI warning
+- [x] Reports `naturalWidth`/`naturalHeight`/`downscale` for display and the project file
 
-### 2.2 Framing — `src/lego/frame.ts`
+> Lives in `src/image/`, not `src/lego/`, because it is the one stage that needs the
+> DOM. Keeping it out preserves the "domain core runs in Node" contract. Everything it
+> can delegate to a pure function it does — `pickDownscaleFactor` lives in `frame.ts`
+> and is unit tested there.
 
-- [ ] Normalized crop rect (0..1), clamped to bounds
-- [ ] `cropAspectFor(cols, rows, orientation)` — must use `cellH`, not 1:1 (§2.4a)
-- [ ] Rotate 90° / flip H / flip V
-- [ ] **Linear-light box downsample** to `cols × rows` (§6.2)
-- [ ] Two-tier cost path: ≤ 8 MP full JS; > 8 MP integer canvas pre-downscale first
-- [ ] Tests: solid color → uniform cells; 50/50 black/white → linear 0.5 ≈ sRGB 188
-      (the gamma regression test); pips-up sampling not vertically squashed
+### 2.2 Framing — `src/lego/frame.ts` ✅
 
-### 2.3 Adjustments — `src/lego/adjust.ts`
+- [x] Normalized crop rect (0..1), clamped to bounds, non-degenerate
+- [x] `cropAspectFor(cols, rows, orientation)` — uses `cellH`, not 1:1 (§2.4a)
+- [x] `centerCropForAspect()` — cover framing
+- [x] Rotate 90/180/270 and flip H/V, folded into sampling rather than materializing
+      a rotated copy of a potentially huge image
+- [x] **Linear-light area-weighted box downsample** (§6.2), with a 256-entry sRGB LUT
+      so the inner loop never calls `pow`
+- [x] Alpha composited over a configurable background, also in linear light
+- [x] `pickDownscaleFactor()` for the two-tier cost path
+- [x] Tests: solid color → uniform cells; **50/50 black/white → linear 0.5 = sRGB 188**
+      (the gamma regression test); straddling-pixel weights; rotation round-trips;
+      pips-up crop is not squashed
 
-- [ ] Brightness, contrast, saturation in linear light, −100..+100
-- [ ] Saturation via luma-preserving interpolation (Rec. 709)
-- [ ] Tests: identity at 0; monotonic; no channel overflow
+### 2.3 Adjustments — `src/lego/adjust.ts` ✅
 
-### 2.4 Quantization — `src/lego/quantize.ts`
+- [x] Brightness, contrast, saturation, −100..+100
+- [x] Saturation via luma-preserving interpolation (Rec. 709)
+- [x] Tests: identity at 0; monotonic; endpoints pinned; no channel overflow
 
-- [ ] Nearest enabled color by ΔE2000, cell Lab computed once
-- [ ] Serpentine Floyd–Steinberg, error diffused in linear light, 0–100% strength
-- [ ] Optional `maxColors` — greedy selection of the N best palette colors
-- [ ] Tests: monochrome → one color; strength 0 identical to off; disabled colors never
-      appear
+> **Changed from the original design: these run in gamma-encoded space, not linear
+> light.** Averaging demands linear; perceptual controls do not. The deciding case is
+> the contrast pivot — perceptual mid-gray is sRGB 128, but linear 0.5 sits at sRGB 188,
+> so pivoting there would drag the whole image into shadow instead of spreading it about
+> the middle. Rec. 709 luma coefficients are defined on gamma-encoded R′G′B′ too.
+> DESIGN.md §6.3 carries the full rationale.
 
-**Done when:** a fixture image can be turned into a `Grid` in a Node test, no browser.
+### 2.4 Quantization — `src/lego/quantize.ts` ✅
+
+- [x] Nearest enabled color by ΔE2000, cell Lab computed once
+- [x] 8-bit result cache for the non-dithered path — flat regions repeat heavily
+- [x] Serpentine Floyd–Steinberg, error diffused in linear light, 0–100% strength
+- [x] `maxColors` — greedy selection over a 5-bit histogram with a precomputed
+      representative × color distance table, so cost is bounded by distinct color
+      regions rather than cell count
+- [x] Returns per-color usage counts for the palette panel badges
+- [x] Tests: monochrome → one color; strength 0 bit-identical to off; disabled colors
+      never appear; selection is area-weighted and returned in palette order
+
+**Done when:** a fixture image can be turned into a `Grid` in a Node test, no browser. ✅
+`pipeline.test.ts` runs crop → frame → adjust → quantize end to end and asserts a circle
+stays circular in _physical_ space in both orientations.
 
 ---
 
