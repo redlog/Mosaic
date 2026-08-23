@@ -1,10 +1,22 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toBricklinkXml, BRICKLINK_MIME } from '../lego/export-bricklink';
 import { toCsv, CSV_MIME } from '../lego/export-csv';
 import { renderGeometry } from '../lego/render';
 import { renderToBlob } from '../browser/render-canvas';
 import { downloadBlob, downloadText, exportFilename } from '../browser/download';
-import { palette, type DerivedMosaic, type MosaicState } from '../state/useMosaicStore';
+import {
+  PROJECT_MIME,
+  ProjectError,
+  parseProject,
+  serializeProject,
+} from '../lego/project';
+import { fromProject, toProject } from '../state/project-io';
+import {
+  palette,
+  type Action,
+  type DerivedMosaic,
+  type MosaicState,
+} from '../state/useMosaicStore';
 
 /** Whether the bundled color table has been checked against a real catalog. */
 const PALETTE_VERIFIED = palette.provenance.verified;
@@ -12,13 +24,16 @@ const PALETTE_VERIFIED = palette.provenance.verified;
 export interface ExportPanelProps {
   state: MosaicState;
   derived: DerivedMosaic;
+  dispatch: (action: Action) => void;
 }
 
 const SCALES = [1, 2, 4];
 
-export default function ExportPanel({ state, derived }: ExportPanelProps) {
+export default function ExportPanel({ state, derived, dispatch }: ExportPanelProps) {
   const [scale, setScale] = useState(2);
   const [saving, setSaving] = useState(false);
+  const [embedSource, setEmbedSource] = useState(true);
+  const projectInput = useRef<HTMLInputElement>(null);
   const { tiling, bom, gridColors } = derived;
   const ready = Boolean(tiling && bom);
   const name = state.source?.name;
@@ -45,6 +60,32 @@ export default function ExportPanel({ state, derived }: ExportPanelProps) {
   }
 
   const bricklink = bom ? toBricklinkXml(bom) : null;
+
+  function saveProject() {
+    if (!derived.grid) return;
+    const file = toProject(state, derived.grid, derived.colorKeys, { embedSource });
+    downloadText(
+      serializeProject(file),
+      exportFilename(state.projectName ?? name, 'project', 'json'),
+      PROJECT_MIME
+    );
+  }
+
+  async function openProject(file: File | undefined) {
+    if (!file) return;
+    try {
+      const next = await fromProject(parseProject(await file.text()), file.name);
+      dispatch({ type: 'loadProject', state: next });
+    } catch (err) {
+      dispatch({
+        type: 'setError',
+        error:
+          err instanceof ProjectError
+            ? err.message
+            : `Could not open that project: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
 
   return (
     <section className="panel" aria-labelledby="export-heading">
@@ -108,6 +149,46 @@ export default function ExportPanel({ state, derived }: ExportPanelProps) {
 
       {bricklink && bricklink.warnings.length > 0 && (
         <p className="note note--warn">{bricklink.warnings.join(' ')}</p>
+      )}
+
+      <hr />
+
+      <h3 className="subhead">Project</h3>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={embedSource}
+          onChange={(e) => setEmbedSource(e.target.checked)}
+        />
+        Embed the photo
+      </label>
+      <p className="muted small">
+        {embedSource
+          ? 'Self-contained: the project reopens fully editable.'
+          : 'Settings and the color grid only. Smaller, but the crop and colors cannot be changed on reopening.'}
+      </p>
+
+      <div className="row">
+        <button type="button" disabled={!derived.grid} onClick={saveProject}>
+          Save project
+        </button>
+        <button type="button" onClick={() => projectInput.current?.click()}>
+          Open project
+        </button>
+      </div>
+      <input
+        ref={projectInput}
+        type="file"
+        accept="application/json,.json"
+        className="visually-hidden"
+        onChange={(e) => void openProject(e.target.files?.[0])}
+      />
+
+      {state.loadedGrid && (
+        <p className="note">
+          Opened without its photo, so this project can be re-tiled and exported but not
+          re-cropped or re-colored. Save with the photo embedded to keep those.
+        </p>
       )}
 
       {!PALETTE_VERIFIED && (

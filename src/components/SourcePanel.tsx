@@ -67,6 +67,7 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
           image: { width: decoded.width, height: decoded.height, data: decoded.data },
           naturalWidth: decoded.naturalWidth,
           naturalHeight: decoded.naturalHeight,
+          dataUrl: decoded.dataUrl,
         },
       });
       if (decoded.naturalWidth * decoded.naturalHeight > LARGE_IMAGE_PIXELS) {

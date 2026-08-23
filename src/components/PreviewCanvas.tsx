@@ -15,6 +15,9 @@ export interface PreviewCanvasProps {
   dispatch: (action: Action) => void;
   derived: DerivedMosaic;
   busy: boolean;
+  /** 0..1 while the worker is running, null when idle. */
+  progress: number | null;
+  usingWorker: boolean;
 }
 
 const MODES: Array<{ value: ViewMode; label: string; hint: string }> = [
@@ -28,6 +31,8 @@ export default function PreviewCanvas({
   dispatch,
   derived,
   busy,
+  progress,
+  usingWorker,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -84,6 +89,10 @@ export default function PreviewCanvas({
     state.mosaic,
   ]);
 
+  // A project opened without its photo has a tiling but no source, so the
+  // canvas must key off the tiling — only the Source view needs the image.
+  const hasContent = mode === 'source' ? Boolean(state.source) : Boolean(tiling);
+
   const summary = tiling
     ? `${state.mosaic.cols} by ${state.mosaic.rows} brick mosaic, ${tiling.stats.pieces} pieces, ${derived.bom?.totals.distinctColors ?? 0} colors`
     : 'No mosaic yet';
@@ -124,11 +133,30 @@ export default function PreviewCanvas({
           />
         </label>
 
-        {busy && <span className="badge">working…</span>}
+        {busy && (
+          <>
+            <span className="badge">
+              {usingWorker ? 'tiling…' : 'tiling (no worker)…'}
+            </span>
+            <span
+              className="progress"
+              role="progressbar"
+              aria-label="Tiling progress"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((progress ?? 0) * 100)}
+            >
+              <span
+                className="progress__fill"
+                style={{ width: `${Math.round((progress ?? 0) * 100)}%` }}
+              />
+            </span>
+          </>
+        )}
       </div>
 
       <div className="preview__stage">
-        {state.source ? (
+        {hasContent ? (
           <canvas
             ref={canvasRef}
             className="preview__canvas"
@@ -137,7 +165,7 @@ export default function PreviewCanvas({
             role="img"
           />
         ) : (
-          <p className="empty">Drop a photo on the left to begin.</p>
+          <p className="empty">Drop a photo on the left, or open a saved project.</p>
         )}
       </div>
     </section>

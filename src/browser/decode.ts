@@ -41,6 +41,25 @@ export interface DecodedImage extends SourceImage {
   naturalHeight: number;
   /** Integer factor the image was shrunk by, 1 if untouched. */
   downscale: number;
+  /** The original bytes, so a project can embed the image it started from. */
+  dataUrl: string;
+}
+
+/** Read a File as a base64 data URL, for embedding in a project file. */
+export function readDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new ImageDecodeError('Could not read that file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** Turn an embedded data URL back into a decodable File. */
+export async function fileFromDataUrl(dataUrl: string, name: string): Promise<File> {
+  const response = await fetch(dataUrl);
+  const blob = await response.blob();
+  return new File([blob], name, { type: blob.type || 'image/png' });
 }
 
 function makeCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
@@ -78,6 +97,7 @@ export async function decodeImageFile(
 
   const naturalWidth = bitmap.width;
   const naturalHeight = bitmap.height;
+  const dataUrl = await readDataUrl(file);
 
   try {
     const downscale = pickDownscaleFactor(
@@ -104,6 +124,7 @@ export async function decodeImageFile(
       naturalWidth,
       naturalHeight,
       downscale,
+      dataUrl,
     };
   } finally {
     bitmap.close();

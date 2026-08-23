@@ -36,7 +36,8 @@ function useNarrow(): boolean {
 }
 
 export default function App() {
-  const { state, dispatch, derived, busy, setCrop } = useMosaicStore();
+  const { state, dispatch, derived, busy, progress, usingWorker, setCrop } =
+    useMosaicStore();
   const narrow = useNarrow();
   const [tab, setTab] = useState<Tab>('source');
 
@@ -54,12 +55,19 @@ export default function App() {
     <>
       <StatsCard state={state} derived={derived} />
       <PartsList derived={derived} />
-      <ExportPanel state={state} derived={derived} />
+      <ExportPanel state={state} derived={derived} dispatch={dispatch} />
     </>
   );
 
   const preview = (
-    <PreviewCanvas state={state} dispatch={dispatch} derived={derived} busy={busy} />
+    <PreviewCanvas
+      state={state}
+      dispatch={dispatch}
+      derived={derived}
+      busy={busy}
+      progress={progress}
+      usingWorker={usingWorker}
+    />
   );
 
   return (

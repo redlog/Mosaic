@@ -13,6 +13,9 @@ export interface PalettePanelProps {
 
 export default function PalettePanel({ state, dispatch, derived }: PalettePanelProps) {
   const enabled = new Set(state.quantizeSettings.enabledColors);
+  // The color mapping is baked into a restored grid; changing the selection
+  // cannot re-run without the source pixels.
+  const disabled = state.source === null;
 
   // Usage counts come back indexed against the colors quantize actually used,
   // which may be a reduced set, so map by key rather than by index.
@@ -29,9 +32,14 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
         Colors <span className="muted small">{enabled.size} on</span>
       </h2>
 
+      {disabled && (
+        <p className="note">Colors are fixed for a project opened without its photo.</p>
+      )}
+
       <div className="row">
         <button
           type="button"
+          disabled={disabled}
           onClick={() =>
             dispatch({ type: 'setColors', keys: palette.colors.map((c) => c.key) })
           }
@@ -40,7 +48,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
         </button>
         <button
           type="button"
-          disabled={usedKeys.length === 0}
+          disabled={disabled || usedKeys.length === 0}
           onClick={() => dispatch({ type: 'setColors', keys: usedKeys })}
           title="Drop every color the current mosaic does not use"
         >
@@ -56,6 +64,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
         <input
           id="max-colors"
           type="range"
+          disabled={disabled}
           min={0}
           max={Math.min(40, palette.colors.length)}
           value={state.quantizeSettings.maxColors ?? 0}
@@ -72,6 +81,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
       <label className="check">
         <input
           type="checkbox"
+          disabled={disabled}
           checked={state.quantizeSettings.strict}
           onChange={(e) =>
             dispatch({ type: 'patchQuantize', patch: { strict: e.target.checked } })
@@ -90,6 +100,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
                 <input
                   type="checkbox"
                   className="visually-hidden"
+                  disabled={disabled}
                   checked={on}
                   onChange={() => dispatch({ type: 'toggleColor', key: color.key })}
                 />

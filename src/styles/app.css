@@ -542,3 +542,24 @@ details summary {
   white-space: nowrap;
   border: 0;
 }
+
+.subhead {
+  margin: 0.6rem 0 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.progress {
+  flex: none;
+  width: 5rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}

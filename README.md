@@ -19,16 +19,43 @@ restored as a single JSON file.
 
 ## Status
 
-**The app works end to end.** Drop in a photo, frame it, choose an orientation and
-size, and get a rendered brick preview, a parts list and downloadable exports. Phases
-0–6 are done; the Web Worker, project save/load and final polish remain.
-
-On a 48×48 test scene the tiler produces **330 bricks where all-1×1s would need 2,304**
-— a 7× reduction — in 45 orderable lots across 16 colors.
+**The app is feature-complete.** Drop in a photo, frame it, choose an orientation and
+size, and get a rendered brick preview, a parts list and downloadable exports — with the
+heavy work in a Web Worker and projects that save and reopen. Phases 0–8 are done; only
+polish, cross-browser checks and deployment remain.
 
 ```bash
 npm install && npm run dev
 ```
+
+### Performance
+
+Measured on the reference machine, strict availability on, 200 restarts:
+
+| Grid | Orientation | Frame | Quantize + tile | Pieces | vs all-1×1 |
+| ---- | ----------- | ----- | --------------- | ------ | ---------- |
+| 64²  | pips-out    | 28 ms | 310 ms          | 524    | 7.8×       |
+| 64²  | pips-up     | 33 ms | 10 ms           | 904    | 4.5×       |
+| 128² | pips-out    | 43 ms | 984 ms          | 1,956  | 8.4×       |
+| 128² | pips-up     | 26 ms | 19 ms           | 3,380  | 4.8×       |
+| 256² | pips-out    | 36 ms | 1,523 ms        | 7,474  | 8.8×       |
+| 256² | pips-up     | 32 ms | 22 ms           | 13,059 | 5.0×       |
+
+Framing is flat regardless of grid size — it is bounded by the source image. The wall
+tiler finishes in milliseconds because its DP is exact and runs once; the flat tiler
+spends its budget on randomized restarts, and at 256² the 1.5 s budget cuts it to 75 of
+the 200 requested. All of it runs in a worker, so the interface stays responsive: a
+click during a 160×160 tile completes in ~150 ms.
+
+### Projects
+
+A project is one JSON file. It always stores the quantized grid — run-length encoded, so
+a 256² mosaic is 353 runs and 2.7 KB — and optionally embeds the source photo. With the
+photo it reopens fully editable (~47 KB for a 900×700 JPEG); without it (~10 KB) the
+mosaic still renders, re-tiles and exports, but the crop and colors are fixed.
+
+The tiling itself is never stored: it is recomputed from the grid, the settings and the
+seed, so a saved file cannot disagree with itself.
 
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan

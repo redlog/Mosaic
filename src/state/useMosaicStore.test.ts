@@ -17,6 +17,7 @@ const source: SourceState = {
   image: { width: 40, height: 30, data: new Uint8ClampedArray(40 * 30 * 4) },
   naturalWidth: 800,
   naturalHeight: 600,
+  dataUrl: 'data:image/jpeg;base64,',
 };
 
 const loaded = (): MosaicState => reducer(initialState(), { type: 'setSource', source });

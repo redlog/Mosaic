@@ -18,10 +18,19 @@ export default function AdjustPanel({ state, dispatch, derived }: AdjustPanelPro
   const { adjust, quantizeSettings } = state;
   const dithering = quantizeSettings.dither !== 'none';
   const ones = derived.tiling?.stats.ones ?? 0;
+  // Without the source pixels there is nothing to re-sample, so these controls
+  // would silently do nothing.
+  const disabled = state.source === null;
 
   return (
     <section className="panel" aria-labelledby="adjust-heading">
       <h2 id="adjust-heading">Image</h2>
+
+      {disabled && (
+        <p className="note">
+          This project was opened without its photo, so the image cannot be re-sampled.
+        </p>
+      )}
 
       {SLIDERS.map(({ key, label }) => (
         <div className="field" key={key}>
@@ -33,6 +42,7 @@ export default function AdjustPanel({ state, dispatch, derived }: AdjustPanelPro
             type="range"
             min={-100}
             max={100}
+            disabled={disabled}
             value={adjust[key]}
             onChange={(e) =>
               dispatch({
@@ -46,6 +56,7 @@ export default function AdjustPanel({ state, dispatch, derived }: AdjustPanelPro
 
       <button
         type="button"
+        disabled={disabled}
         onClick={() => dispatch({ type: 'patchAdjust', patch: NO_ADJUSTMENTS })}
       >
         Reset adjustments
@@ -56,6 +67,7 @@ export default function AdjustPanel({ state, dispatch, derived }: AdjustPanelPro
       <label className="check">
         <input
           type="checkbox"
+          disabled={disabled}
           checked={dithering}
           onChange={(e) =>
             dispatch({

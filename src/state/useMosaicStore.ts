@@ -5,7 +5,7 @@
  * weight does not re-decode the image and moving the crop does not re-run
  * palette selection (DESIGN.md §6).
  */
-import { useCallback, useDeferredValue, useMemo, useReducer } from 'react';
+import { useCallback, useMemo, useReducer } from 'react';
 import { applyAdjustments, NO_ADJUSTMENTS } from '../lego/adjust';
 import { buildBom, type Bom } from '../lego/bom';
 import {
@@ -22,20 +22,18 @@ import {
   baseplatesFor,
   finishedSize,
 } from '../lego/constants';
-import {
-  enabledColors as selectColors,
-  loadPalette,
-  unusableColors,
-} from '../lego/palette';
+import { enabledColors as selectColors, unusableColors } from '../lego/palette';
+import { palette, type BuildSettings } from '../lego/build';
+import { useMosaicPipeline, type PipelineSource } from './useMosaicWorker';
 import { defaultInventoryFor } from '../lego/parts';
-import { quantize, type DitherMode } from '../lego/quantize';
+import type { DitherMode } from '../lego/quantize';
 import { DEFAULT_WALL_WEIGHTS, DEFAULT_WEIGHTS } from '../lego/score';
-import { tile } from '../lego/tile';
 import { randomSeed } from '../lego/rng';
 import type { RenderMode } from '../lego/render';
 import type {
   Adjustments,
   CropRect,
+  Grid,
   LegoColor,
   Orientation,
   SourceImage,
@@ -44,24 +42,26 @@ import type {
   Transform,
 } from '../lego/types';
 
-export const palette = loadPalette();
+export { palette };
 const allColors = [...palette.colors];
 
 /** The 1x1 is mandatory: without it some regions cannot be covered at all. */
 export const REQUIRED_SHAPE = '3005';
 
 /**
- * Interactive tiling runs on the main thread until Phase 7 moves it into a
- * worker, so the live budget is deliberately short. Exports can afford more.
+ * Tiling runs in a worker, so the budget is the design's full one rather than
+ * something trimmed to keep the main thread responsive.
  */
-export const INTERACTIVE_BUDGET_MS = 400;
-export const INTERACTIVE_RESTARTS = 60;
+export const DEFAULT_BUDGET_MS = 1500;
+export const DEFAULT_RESTARTS = 200;
 
 export interface SourceState {
   name: string;
   image: SourceImage;
   naturalWidth: number;
   naturalHeight: number;
+  /** Original bytes, kept so a project can embed the image it started from. */
+  dataUrl: string;
 }
 
 export interface MosaicSettings {
@@ -97,6 +97,14 @@ export interface ViewSettings {
 
 export interface MosaicState {
   source: SourceState | null;
+  /**
+   * A grid restored from a project saved without its image. Present only when
+   * `source` is null; re-cropping and re-quantizing are unavailable then, but
+   * rendering, re-tiling and exporting all work.
+   */
+  loadedGrid: { grid: Grid; colorKeys: string[] } | null;
+  /** Filename the project was opened from, used to name exports. */
+  projectName: string | null;
   crop: CropRect;
   transform: Transform;
   mosaic: MosaicSettings;
@@ -110,6 +118,8 @@ export interface MosaicState {
 export function initialState(): MosaicState {
   return {
     source: null,
+    loadedGrid: null,
+    projectName: null,
     crop: { x: 0, y: 0, w: 1, h: 1 },
     transform: IDENTITY_TRANSFORM,
     mosaic: { orientation: 'pips-out', cols: 48, rows: 48, linkAspect: true },
@@ -124,8 +134,8 @@ export function initialState(): MosaicState {
     tiler: {
       inventory: [...defaultInventoryFor('pips-out')],
       weights: DEFAULT_WEIGHTS,
-      restarts: INTERACTIVE_RESTARTS,
-      budgetMs: INTERACTIVE_BUDGET_MS,
+      restarts: DEFAULT_RESTARTS,
+      budgetMs: DEFAULT_BUDGET_MS,
       seed: 1,
     },
     view: { mode: 'build', pxPerStud: 14 },
@@ -181,6 +191,7 @@ export type Action =
   | { type: 'toggleShape'; designId: string }
   | { type: 'randomizeSeed' }
   | { type: 'setError'; error: string | null }
+  | { type: 'loadProject'; state: MosaicState }
   | { type: 'replace'; state: MosaicState };
 
 function refit(state: MosaicState, crop = state.crop): CropRect {
@@ -193,7 +204,13 @@ function refit(state: MosaicState, crop = state.crop): CropRect {
 export function reducer(state: MosaicState, action: Action): MosaicState {
   switch (action.type) {
     case 'setSource': {
-      const next: MosaicState = { ...state, source: action.source, error: null };
+      // A real image supersedes any grid restored from a project.
+      const next: MosaicState = {
+        ...state,
+        source: action.source,
+        loadedGrid: null,
+        error: null,
+      };
       const aspect = cropAspectFor(
         state.mosaic.cols,
         state.mosaic.rows,
@@ -347,6 +364,7 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
     case 'setError':
       return { ...state, error: action.error };
 
+    case 'loadProject':
     case 'replace':
       return action.state;
   }
@@ -357,8 +375,11 @@ export interface DerivedMosaic {
   activeColors: LegoColor[];
   tiling: Tiling | null;
   bom: Bom | null;
-  /** Cell colors, parallel to the tiling's indices. */
+  /** Cell colors, parallel to the grid's indices. */
   gridColors: LegoColor[];
+  /** Palette keys in index order, for serializing the grid. */
+  colorKeys: string[];
+  grid: Grid | null;
   counts: number[];
   size: ReturnType<typeof finishedSize>;
   baseplates: ReturnType<typeof baseplatesFor>;
@@ -369,17 +390,14 @@ export interface DerivedMosaic {
 
 export function useMosaicStore() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const { source, loadedGrid, crop, transform, mosaic, adjust, quantizeSettings, tiler } =
+    state;
 
   /**
-   * Deferring the heavy inputs keeps typing in a number field responsive:
-   * React renders the control immediately and recomputes the mosaic on a
-   * lower-priority pass. Phase 7 moves the work off the thread entirely.
+   * Colors offered to the quantizer. Under strict availability a color with no
+   * legal brick in the current inventory is dropped rather than left to fail
+   * mid-tile — unless that would empty the palette entirely.
    */
-  const deferred = useDeferredValue(state);
-  const busy = deferred !== state;
-
-  const { source, crop, transform, mosaic, adjust, quantizeSettings, tiler } = deferred;
-
   const activeColors = useMemo(() => {
     const enabled = selectColors(palette, quantizeSettings.enabledColors);
     if (!quantizeSettings.strict) return enabled;
@@ -388,30 +406,48 @@ export function useMosaicStore() {
     return usable.length > 0 ? usable : enabled;
   }, [quantizeSettings.enabledColors, quantizeSettings.strict, tiler.inventory]);
 
-  const framed = useMemo(() => {
-    if (!source) return null;
-    return frameImage(source.image, mosaic.cols, mosaic.rows, { crop, transform });
-  }, [source, mosaic.cols, mosaic.rows, crop, transform]);
+  // Framing and adjustment stay on the main thread: they are cheap relative to
+  // tiling, and keeping the source pixels here avoids shipping a 30MB buffer
+  // across the wire on every crop nudge.
+  const framed = useMemo(
+    () =>
+      source
+        ? frameImage(source.image, mosaic.cols, mosaic.rows, { crop, transform })
+        : null,
+    [source, mosaic.cols, mosaic.rows, crop, transform]
+  );
 
   const adjusted = useMemo(
     () => (framed ? applyAdjustments(framed, adjust) : null),
     [framed, adjust]
   );
 
-  const quantized = useMemo(() => {
-    if (!adjusted) return null;
-    return quantize(adjusted, activeColors, {
+  const pipelineSource = useMemo<PipelineSource>(() => {
+    if (adjusted) return { kind: 'cells', cells: adjusted };
+    if (loadedGrid) {
+      return { kind: 'grid', grid: loadedGrid.grid, colorKeys: loadedGrid.colorKeys };
+    }
+    return { kind: 'none' };
+  }, [adjusted, loadedGrid]);
+
+  const buildSettings = useMemo<BuildSettings>(
+    () => ({
+      orientation: mosaic.orientation,
+      colorKeys: activeColors.map((c) => c.key),
       dither: quantizeSettings.dither,
       ditherStrength: quantizeSettings.ditherStrength,
       maxColors: quantizeSettings.maxColors,
-    });
-  }, [
-    adjusted,
-    activeColors,
-    quantizeSettings.dither,
-    quantizeSettings.ditherStrength,
-    quantizeSettings.maxColors,
-  ]);
+      strict: quantizeSettings.strict,
+      inventory: tiler.inventory,
+      weights: tiler.weights,
+      seed: tiler.seed,
+      restarts: tiler.restarts,
+      budgetMs: tiler.budgetMs,
+    }),
+    [mosaic.orientation, activeColors, quantizeSettings, tiler]
+  );
+
+  const pipeline = useMosaicPipeline(pipelineSource, buildSettings);
 
   const derived = useMemo<DerivedMosaic>(() => {
     const size = finishedSize(mosaic.cols, mosaic.rows, mosaic.orientation);
@@ -419,13 +455,17 @@ export function useMosaicStore() {
     const tooLarge =
       mosaic.cols > WARN_GRID_DIMENSION || mosaic.rows > WARN_GRID_DIMENSION;
     const warnings = [...palette.warnings];
+    if (pipeline.error) warnings.push(pipeline.error);
 
-    if (!quantized) {
+    const result = pipeline.result;
+    if (!result) {
       return {
         activeColors,
         tiling: null,
         bom: null,
         gridColors: [],
+        colorKeys: [],
+        grid: null,
         counts: [],
         size,
         baseplates,
@@ -435,55 +475,38 @@ export function useMosaicStore() {
       };
     }
 
-    const started = performance.now();
-    let tiling: Tiling | null = null;
-    try {
-      tiling = tile(quantized.grid, mosaic.orientation, {
-        inventory: tiler.inventory,
-        weights: tiler.weights,
-        seed: tiler.seed,
-        restarts: tiler.restarts,
-        budgetMs: tiler.budgetMs,
-        strict: quantizeSettings.strict,
-        colors: quantized.colors,
-      });
-    } catch (err) {
-      warnings.push(err instanceof Error ? err.message : String(err));
-    }
-
-    const bom = tiling ? buildBom(tiling, quantized.colors) : null;
-    if (bom) warnings.push(...bom.warnings);
+    const gridColors = result.colorKeys.map((key) => palette.byKey.get(key)!);
+    const bom = buildBom(result.tiling, gridColors);
+    warnings.push(...bom.warnings);
 
     return {
       activeColors,
-      tiling,
+      tiling: result.tiling,
       bom,
-      gridColors: quantized.colors,
-      counts: quantized.counts,
+      gridColors,
+      colorKeys: result.colorKeys,
+      grid: result.grid,
+      counts: result.counts,
       size,
       baseplates,
       warnings,
       tooLarge,
-      elapsedMs: performance.now() - started,
+      elapsedMs: result.elapsedMs,
     };
-  }, [
-    quantized,
-    activeColors,
-    mosaic.cols,
-    mosaic.rows,
-    mosaic.orientation,
-    tiler.inventory,
-    tiler.weights,
-    tiler.seed,
-    tiler.restarts,
-    tiler.budgetMs,
-    quantizeSettings.strict,
-  ]);
+  }, [pipeline.result, pipeline.error, activeColors, mosaic]);
 
   const setCrop = useCallback(
     (next: CropRect) => dispatch({ type: 'setCrop', crop: next }),
     []
   );
 
-  return { state, dispatch, derived, busy, setCrop };
+  return {
+    state,
+    dispatch,
+    derived,
+    busy: pipeline.busy,
+    progress: pipeline.progress,
+    usingWorker: pipeline.usingWorker,
+    setCrop,
+  };
 }

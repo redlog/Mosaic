@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-6 complete — the app is usable end to end. Start at Phase 7.
+**Current status:** Phases 0-8 complete. Only Phase 9 (polish, cross-browser, deploy) remains.
 
 ---
 
@@ -385,30 +385,61 @@ identical quantity totals.
 
 ---
 
-## Phase 7 — Worker and performance
+## Phase 7 — Worker and performance ✅
 
-- [ ] `src/worker/mosaic.worker.ts` hosting quantize + tile
-- [ ] Message protocol with a `generation` counter; stale results discarded (§12)
-- [ ] Typed arrays transferred, not copied
-- [ ] Progress events driving a real progress bar
-- [ ] Auto-rebuild below 96×96; manual rebuild above
-- [ ] Warning above 256 per dimension; hard cap at 400
-- [ ] Benchmark 64², 128², 256² and record the numbers in the README
+- [x] `src/worker/mosaic.worker.ts` hosting quantize + tile
+- [x] Message protocol with a `generation` counter; stale replies dropped (§12)
+- [x] Typed arrays transferred, not copied — after a defensive copy, see below
+- [x] Progress events driving a real progress bar, throttled to 5% steps
+- [x] Full 200-restart / 1500 ms budget now that the work is off-thread
+- [x] Warning above 256 per dimension; hard cap at 400
+- [x] Benchmarked 64², 128², 256² — numbers in the README
+
+> **`build.ts` holds the pipeline; the worker is a shell.** The worker and the
+> synchronous fallback call identical code, so they cannot drift, and the heavy path
+> stays testable in Node with no worker at all. A test asserts `buildFromCells` and
+> `buildFromGrid` agree on the same grid and seed — otherwise reopening a project would
+> silently produce a different mosaic.
+
+> **Cancellation is a generation counter, not an abort.** Every request carries one and
+> stale replies are dropped. Simpler and more robust than interrupting a running tile,
+> and the tiler's own time budget already bounds how long a doomed run lasts.
+
+> **The cell buffer is copied before transfer.** Transferring detaches it, and it
+> belongs to a memoized value the main thread still needs — a later render would find
+> an empty buffer.
+
+**Measured:** a UI interaction during a 160×160 tile completes in **149 ms**, where the
+same work on the main thread blocked for seconds.
 
 ---
 
-## Phase 8 — Project save and load
+## Phase 8 — Project save and load ✅
 
-- [ ] `src/lego/project.ts` — serialize the full state tree from §10
-- [ ] RLE encode/decode for the grid (`rle-v1`)
-- [ ] Embed source as a data URL, with a _Settings only_ save option
-- [ ] Load: validate `format` and `version`, run migrations, reject unknown versions
-      with a clear message
-- [ ] Recompute the tiling on load rather than storing it
-- [ ] Settings-only projects: render and export normally, disable re-crop and
-      re-quantize with a visible explanation
-- [ ] Tests: save → load round-trips to identical state; RLE round-trips on random
-      grids; version 0 and version 99 both rejected cleanly
+- [x] `src/lego/project.ts` — the file format, RLE, validation, migration hook
+- [x] `src/state/project-io.ts` — state ↔ project mapping
+- [x] RLE encode/decode for the grid (`rle-v1`)
+- [x] Embed the source as a data URL, with a _settings only_ save option
+- [x] Load: validate `format` and `version`, reject unknown versions clearly
+- [x] Tiling recomputed on load rather than stored
+- [x] Grid-only projects render, re-tile and export; re-crop and re-quantize are
+      disabled with a visible explanation
+- [x] Tests: RLE round-trips on random grids; a version from the future is refused;
+      unknown bricks, bad encodings and out-of-range color indices all rejected
+
+**Verified by round-tripping through the real app.** Saved with the photo: 47 KB, 177
+RLE runs, no tiling stored, and reopening restores byte-identical stats (400 bricks, 70
+lots, 21 colors) with the thumbnail back. Saved without: 9.6 KB, and reopening produces
+the _same_ mosaic from the stored grid alone.
+
+> RLE earns its place: a 256² grid is 65,536 cells and compresses to **353 runs, 2.7 KB**.
+> That is what makes "always store the grid" affordable.
+
+> **A bug only this mode could surface.** The preview keyed its canvas off
+> `state.source`, so a project opened without its photo showed correct stats and a
+> correct parts list beside a completely blank preview. It now keys off the tiling.
+> Neither the unit tests nor the earlier browser runs could have caught it — both always
+> had a source image.
 
 ---
 
