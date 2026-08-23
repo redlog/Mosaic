@@ -2,7 +2,7 @@
  * Framing: crop, orient, and downsample a source image to the brick grid.
  *
  * Pure — takes decoded pixels, returns cell averages. Browser decoding lives
- * in src/image/decode.ts so this stays testable in Node.
+ * in src/browser/decode.ts so this stays testable in Node.
  *
  * The downsample is an area-weighted box filter evaluated in **linear light**.
  * Averaging gamma-encoded sRGB values is the single most common bug in image

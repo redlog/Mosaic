@@ -1,6 +1,7 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Phases 0-3 complete (toolchain, domain core, image pipeline, tilers)
+**Status:** design approved; Milestone 1 complete (Phases 0-4: toolchain, domain core,
+image pipeline, tilers, exports). Rendering and UI next.
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -173,8 +174,9 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  ├─ export-csv.ts
    │  ├─ export-bricklink.ts
    │  └─ rng.ts                 seeded PRNG (mulberry32)
-   ├─ image/
-   │  └─ decode.ts              File → pixels (the only DOM-dependent stage)
+   ├─ browser/                  ← platform adapters; the only DOM-dependent code
+   │  ├─ decode.ts              File → pixels
+   │  └─ download.ts            Blob → the user's disk
    ├─ worker/
    │  └─ mosaic.worker.ts
    ├─ state/
@@ -361,7 +363,7 @@ Tiling        list of placements
 
 ### 6.1 Decode
 
-Decoding is the only stage that needs the DOM, so it lives in `src/image/decode.ts`
+Decoding is the only stage that needs the DOM, so it lives in `src/browser/decode.ts`
 rather than `src/lego/`, keeping the domain core testable in Node. It stays thin and
 hands off every decision it can to a pure function — the pre-shrink factor, for
 instance, comes from `pickDownscaleFactor` in `frame.ts`.

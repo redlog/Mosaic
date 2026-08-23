@@ -19,10 +19,13 @@ restored as a single JSON file.
 
 ## Status
 
-Phases 0–2 complete — toolchain, domain core (geometry, color science, parts catalog,
-palette, seeded RNG), and the image pipeline (crop, orient, linear-light downsample,
-adjustments, quantization). An image becomes a color-mapped grid entirely in Node
-tests. No tiling or UI yet.
+**Milestone 1 complete.** An image goes in and a validated tiling, a parts list, a CSV
+and a BrickLink Wanted List come out — entirely in Node tests, no browser. Toolchain,
+domain core, image pipeline, both tilers, and the exports are done. Rendering and the
+UI are next.
+
+On a 48×48 test scene the tiler produces **330 bricks where all-1×1s would need 2,304**
+— a 7× reduction — in 45 orderable lots across 16 colors.
 
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan
@@ -57,9 +60,9 @@ Requires Node 20+ (developed on 22).
 tilers, the parts list, and the exports. It is pure TypeScript with no React and no DOM
 access, so it is unit-testable in Node and reusable from a CLI later.
 
-`src/image/` holds the one stage that genuinely needs the DOM — decoding a `File` into
-pixels — and stays deliberately thin. Anything else that touches the DOM belongs in
-`src/components/`.
+`src/browser/` holds the platform adapters — decoding a `File` into pixels, handing a
+Blob to the user's disk. These are the only modules that touch the DOM outside the UI
+itself; everything else that does belongs in `src/components/`.
 
 ## A note on the color data
 

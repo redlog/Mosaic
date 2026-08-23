@@ -1,9 +1,9 @@
 /**
  * Browser-side image decoding.
  *
- * This is the only part of the pipeline that needs the DOM, so it lives
- * outside src/lego/ and stays deliberately thin: everything it can hand off
- * to a pure function, it does.
+ * The only part of the pipeline that needs the DOM, so it lives outside
+ * src/lego/ alongside the other platform adapters, and stays deliberately
+ * thin: everything it can hand off to a pure function, it does.
  */
 import { pickDownscaleFactor } from '../lego/frame';
 import type { SourceImage } from '../lego/types';

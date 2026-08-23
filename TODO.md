@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-3 complete. Start at Phase 4.
+**Current status:** Phases 0-4 complete. Start at Phase 5.
 
 ---
 
@@ -129,14 +129,14 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 
 ## Phase 2 — Image pipeline ✅
 
-### 2.1 Decode — `src/image/decode.ts` ✅
+### 2.1 Decode — `src/browser/decode.ts` ✅
 
 - [x] `decodeImageFile(file)` via `createImageBitmap(file, { imageOrientation: 'from-image' })`
 - [x] Reject non-PNG/JPEG with a typed `ImageDecodeError`
 - [x] Integer pre-shrink above 8 MP; `LARGE_IMAGE_PIXELS` threshold exported for the UI warning
 - [x] Reports `naturalWidth`/`naturalHeight`/`downscale` for display and the project file
 
-> Lives in `src/image/`, not `src/lego/`, because it is the one stage that needs the
+> Lives in `src/browser/`, not `src/lego/`, because it is the one stage that needs the
 > DOM. Keeping it out preserves the "domain core runs in Node" contract. Everything it
 > can delegate to a pure function it does — `pickDownscaleFactor` lives in `frame.ts`
 > and is unit tested there.
@@ -254,18 +254,36 @@ mysterious uncovered cells, and the UI must not let the user disable 1×1.
 
 ---
 
-## Phase 4 — Parts list and exports
+## Phase 4 — Parts list and exports ✅
 
-- [ ] `src/lego/bom.ts` — group placements by `(designId, colorKey)`, sort by color then
-      descending size; totals for pieces, distinct SKUs, distinct colors
-- [ ] `src/lego/export-csv.ts` — RFC 4180 quoting, header row per §11.1
-- [ ] `src/lego/export-bricklink.ts` — Wanted List XML per §11.2, XML-escaped
-- [ ] Exclude colors lacking a numeric `blColorId` from XML; return them as warnings
-      rather than guessing an id
-- [ ] Blob download helper
-- [ ] Tests: BOM quantities sum to `placements.length`; CSV re-parses to the same rows;
+- [x] `src/lego/bom.ts` — group placements by `(designId, colorKey)`, sorted by palette
+      order then descending part size; totals for pieces, lots, colors, studs, and the
+      1×1 share
+- [x] `groupByColor()` — feeds the collapsible parts panel directly
+- [x] `shapeTotals` — the piece-count-by-shape breakdown for the stats card
+- [x] `src/lego/export-csv.ts` — RFC 4180 quoting, header per §11.1
+- [x] `src/lego/export-bricklink.ts` — Wanted List XML per §11.2, XML-escaped
+- [x] Colors lacking a numeric `blColorId` excluded from XML and returned as warnings
+      rather than guessed
+- [x] `src/browser/download.ts` — Blob download helper with filename derivation
+- [x] Tests: BOM quantities sum to `placements.length`; studs sum to the cell count;
+      CSV re-parses to the same rows (reusing the CSV reader from the palette script);
       XML parses via `DOMParser` with no error node; a color missing `blColorId`
-      produces a warning and no `<ITEM>`
+      produces a warning, no `<ITEM>`, and nothing resembling a real ID in the output
+
+> Sorting is by **palette order**, not usage. The palette is grouped by color family,
+> so the printed list reads in the same order as a pile of bricks being sorted.
+
+> `groupByColor` and `shapeTotals` exist because Phase 6 needs exactly those shapes;
+> building them here keeps the parts panel a rendering job rather than a data job.
+
+**Verified end to end** on the 48×48 test scene: 330 bricks, 45 lots, 16 colors,
+2,304 studs — which equals 48×48 exactly, confirming the BOM is complete and
+non-overlapping. All 45 lines carried a BrickLink ID, so nothing was omitted.
+
+Also moved `decode.ts` from `src/image/` into `src/browser/` alongside `download.ts`.
+Both are platform adapters; two directories for the same concern was arbitrary. Nothing
+imported it yet, so the move was free.
 
 ---
 
