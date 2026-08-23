@@ -7,6 +7,7 @@ import {
   decodeImageFile,
   isAcceptedType,
 } from '../browser/decode';
+import sampleImage from '../assets/sample.jpg';
 import type { Action, MosaicState } from '../state/useMosaicStore';
 import type { CropRect, Rotation } from '../lego/types';
 
@@ -91,6 +92,19 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
     }
   }
 
+  /** Bundled, so the demo works offline and on first load. */
+  async function loadSample() {
+    setLoading(true);
+    try {
+      const blob = await (await fetch(sampleImage)).blob();
+      await load(new File([blob], 'sample.jpg', { type: 'image/jpeg' }));
+    } catch {
+      dispatch({ type: 'setError', error: 'Could not load the sample image.' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const rotate = (delta: number) => {
     const next = (((state.transform.rotate + delta) % 360) + 360) % 360;
     dispatch({ type: 'patchTransform', patch: { rotate: next as Rotation } });
@@ -132,6 +146,21 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
         >
           <strong>{loading ? 'Reading image…' : 'Drop a photo here'}</strong>
           <span className="muted">PNG or JPEG, or click to choose</span>
+        </div>
+      )}
+
+      {!source && !state.loadedGrid && (
+        <div className="row">
+          <button
+            type="button"
+            disabled={loading}
+            onClick={(e) => {
+              e.stopPropagation();
+              void loadSample();
+            }}
+          >
+            Try a sample photo
+          </button>
         </div>
       )}
 

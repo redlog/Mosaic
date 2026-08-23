@@ -160,6 +160,19 @@ export default function MosaicSettings({
         )}
       </dl>
 
+      {/*
+        A one-stud-deep wall is a real structure with real limits, and the
+        tiler's seam staggering can only do so much (DESIGN.md §7.3).
+      */}
+      {mosaic.orientation === 'pips-up' && mosaic.rows > 40 && (
+        <p className="note">
+          A wall this tall is {size.heightIn.toFixed(0)}&Prime; of bricks one stud deep.
+          Build it on a plate or baseplate foundation, and plan on a frame or a second
+          layer behind it — staggered seams stop it splitting, but they cannot make it
+          rigid.
+        </p>
+      )}
+
       {tooLarge && (
         <p className="note note--warn">
           Above {WARN_GRID_DIMENSION} bricks a side, tiling gets slow. The hard limit is{' '}

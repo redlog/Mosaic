@@ -48,7 +48,14 @@ export default function CropOverlay({
   const onPointerDown = (handle: Handle | 'move') => (event: ReactPointerEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    (event.target as Element).setPointerCapture(event.pointerId);
+    // Capture keeps the drag alive when the pointer leaves the handle. It can
+    // legitimately fail (a pointer that is no longer active), and a throw here
+    // would abort before the drag state is set, killing dragging entirely.
+    try {
+      (event.target as Element).setPointerCapture(event.pointerId);
+    } catch {
+      /* dragging still works via the frame's own move handler */
+    }
     drag.current = {
       handle,
       startX: event.clientX,

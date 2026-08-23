@@ -1,8 +1,7 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Phases 0-8 complete and feature-complete. Upload a photo,
-get a mosaic, parts list and exports, with the heavy work in a worker and projects that
-save and reopen. Only Phase 9 (polish, cross-browser, deploy) remains.
+**Status:** built. All nine phases complete; see TODO.md for the two Phase 9 items that
+are prepared rather than performed (Firefox/Safari verification and the Pages deploy).
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -114,15 +113,18 @@ modes need separate tilers rather than a shared one with a different aspect cons
 | Language      | TypeScript 6, `strict: true`                      | the algorithm code benefits most from types        |
 | UI            | React 19 + function components                    | settings-panel state is the bulk of the UI work    |
 | State         | plain `useState` / `useReducer` in one store hook | app is small; a state library is overkill          |
-| Styling       | CSS Modules + CSS custom properties               | no runtime cost, easy dark mode                    |
+| Styling       | one plain stylesheet + CSS custom properties      | no runtime cost, easy dark mode                    |
 | Heavy compute | Web Worker (`mosaic.worker.ts`)                   | quantize + tile must not block the UI              |
 | Rasterization | Canvas 2D / OffscreenCanvas                       | no WebGL needed at these sizes                     |
 | Tests         | Vitest 4                                          | shares Vite config, fast                           |
 | Lint/format   | ESLint 10 + Prettier 3                            |                                                    |
 | Deploy        | static build, GitHub Pages compatible             | no backend                                         |
 
-**No runtime network access.** The palette is compiled into the bundle. The app works
-offline once loaded.
+**No runtime network access.** The palette and the sample photo are compiled into the
+bundle. The app works offline once loaded.
+
+> **Built as one `app.css` rather than per-component CSS Modules.** Same zero runtime
+> cost; ten fewer files at this component count. Worth revisiting if the UI grows.
 
 > **Why TypeScript 6 rather than 7.** TypeScript 7 is released, but
 > `typescript-eslint` declares a peer range of `>=4.8.4 <6.1.0` and will not install

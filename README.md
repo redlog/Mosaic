@@ -19,10 +19,16 @@ restored as a single JSON file.
 
 ## Status
 
-**The app is feature-complete.** Drop in a photo, frame it, choose an orientation and
-size, and get a rendered brick preview, a parts list and downloadable exports — with the
-heavy work in a Web Worker and projects that save and reopen. Phases 0–8 are done; only
-polish, cross-browser checks and deployment remain.
+![The app with the bundled sample photo loaded](docs/screenshots/app.png)
+
+**Complete.** Drop in a photo — or press **Try a sample photo** — frame it, choose an
+orientation and size, and get a rendered brick preview, a parts list and downloadable
+exports, with the heavy work in a Web Worker and projects that save and reopen.
+
+Two things are prepared rather than finished, and are marked as such in
+[TODO.md](./TODO.md): Firefox and Safari are untested (only Chromium was available
+here), and the GitHub Pages workflow is committed but publishing needs Pages switched on
+for the repository.
 
 ```bash
 npm install && npm run dev
@@ -60,6 +66,33 @@ seed, so a saved file cannot disagree with itself.
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan
 
+### The two orientations
+
+These are not two aspect ratios — they are two different physical builds, and they need
+two different tiling algorithms.
+
+|                | Pips out                              | Pips up                                |
+| -------------- | ------------------------------------- | -------------------------------------- |
+| What you see   | studs facing you                      | smooth brick sides, studs hidden       |
+| Construction   | laid flat on a baseplate              | stacked wall, one course per row       |
+| Cell           | 8.0 × 8.0 mm — square                 | 8.0 × 9.6 mm — 5:6, taller than wide   |
+| Bricks         | any rectangle, either rotation        | 1×N only; nothing spans two courses    |
+| Seams          | cosmetic — the baseplate carries load | structural — a stacked seam is a crack |
+| 48×48 finishes | 15.1″ × 15.1″                         | 15.1″ × 18.1″                          |
+
+Two consequences fall out of that table and are easy to get wrong. Sampling has to be
+**anisotropic** in pips-up — each cell covers a source region 1.2× taller than it is
+wide, so a square sampling grid squashes the picture. And the wall tiler staggers its
+seams into a running bond, because a seam repeating up the courses is a fracture line in
+a wall one stud deep.
+
+<img src="docs/screenshots/wall.png" alt="A pips-up wall showing running bond" width="360">
+
+Close up, in pips-out, you can see the merging the tiler does — large flat regions
+become 2×4s and 2×8s rather than hundreds of 1×1s:
+
+<img src="docs/screenshots/bricks-closeup.png" alt="Close-up of rendered bricks and studs" width="520">
+
 ## Getting started
 
 ```bash
@@ -83,6 +116,17 @@ npm run check      # typecheck + lint + format check + tests
 | `check`               | everything above, for CI or a pre-push gate          |
 
 Requires Node 20+ (developed on 22).
+
+### Browser support
+
+Developed and verified in Chromium. The app uses `createImageBitmap`, `OffscreenCanvas`,
+module Web Workers and `CanvasRenderingContext2D.roundRect`; each has a fallback —
+an `<img>` decode path, a plain `<canvas>`, a synchronous in-thread pipeline, and square
+brick corners respectively — so an older engine degrades rather than breaking.
+
+**Firefox and Safari are untested.** Only Chromium was available in the environment this
+was built in, so those fallbacks are written against documented behaviour, not observed
+behaviour. Worth an hour on real browsers before calling it done.
 
 ### Layout
 

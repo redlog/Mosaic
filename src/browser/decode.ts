@@ -62,6 +62,26 @@ export async function fileFromDataUrl(dataUrl: string, name: string): Promise<Fi
   return new File([blob], name, { type: blob.type || 'image/png' });
 }
 
+/** Fallback decode path for browsers without `createImageBitmap(Blob)`. */
+async function decodeViaImageElement(file: Blob): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    // Wrapped so callers see one type; `close()` is a no-op on the shim.
+    return {
+      width: image.naturalWidth,
+      height: image.naturalHeight,
+      close: () => {},
+      [Symbol.toStringTag]: 'ImageBitmap',
+      __element: image,
+    } as unknown as ImageBitmap;
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+}
+
 function makeCanvas(width: number, height: number): OffscreenCanvas | HTMLCanvasElement {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(width, height);
   const canvas = document.createElement('canvas');
@@ -86,13 +106,20 @@ export async function decodeImageFile(
     // portrait photo taken on a phone arrives rotated 90 degrees, which is the
     // most common "your app is broken" report for any image tool.
     bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  } catch (cause) {
-    // Keep the underlying failure attached; the surface message is for the
-    // user, the cause is for whoever has to debug it.
-    throw new ImageDecodeError(
-      `Could not decode ${file.name || 'the image'} — it may be corrupt`,
-      { cause }
-    );
+  } catch {
+    // Older Safari has no createImageBitmap(Blob) at all. An <img> element
+    // decodes anywhere and applies EXIF orientation itself, so the fallback
+    // costs one extra copy and nothing else.
+    try {
+      bitmap = await decodeViaImageElement(file);
+    } catch (cause) {
+      // Keep the underlying failure attached; the surface message is for the
+      // user, the cause is for whoever has to debug it.
+      throw new ImageDecodeError(
+        `Could not decode ${file.name || 'the image'} — it may be corrupt`,
+        { cause }
+      );
+    }
   }
 
   const naturalWidth = bitmap.width;
@@ -114,7 +141,9 @@ export async function decodeImageFile(
     }) as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
     if (!ctx) throw new ImageDecodeError('Could not obtain a 2D canvas context');
 
-    ctx.drawImage(bitmap, 0, 0, width, height);
+    const drawable =
+      (bitmap as unknown as { __element?: HTMLImageElement }).__element ?? bitmap;
+    ctx.drawImage(drawable, 0, 0, width, height);
     const imageData = ctx.getImageData(0, 0, width, height);
 
     return {

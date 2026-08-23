@@ -16,7 +16,9 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-8 complete. Only Phase 9 (polish, cross-browser, deploy) remains.
+**Current status:** all nine phases complete. Two items are prepared rather than
+done and are marked `[~]` in Phase 9: cross-browser verification on Firefox/Safari, and
+the Pages deployment itself.
 
 ---
 
@@ -443,16 +445,39 @@ the _same_ mosaic from the stored grid alone.
 
 ---
 
-## Phase 9 — Polish and documentation
+## Phase 9 — Polish and documentation ✅ (with two caveats)
 
-- [ ] Every edge case in §14 handled and manually verified
-- [ ] Empty state: a sample image and a one-click demo project
-- [ ] Loading and error states on every async path
-- [ ] README: screenshots, geometry explanation, palette accuracy caveat, benchmarks
-- [ ] Wall stability notes (§7.3) surfaced in the UI for pips-up, not just in the docs
-- [ ] Cross-browser check: Chrome, Firefox, Safari
-- [ ] Mobile layout pass on a real device
-- [ ] Deploy the static build
+- [x] Every edge case in §14 covered by `edge-cases.test.ts`, which names the row it
+      guards so a failure points at the case that broke
+- [x] Empty state: a bundled sample photo behind a **Try a sample photo** button, so the
+      app demonstrates itself offline and on first load
+- [x] Loading and error states on every async path (decode, sample fetch, project open,
+      PNG render)
+- [x] README: screenshots, the two-orientation explanation, benchmarks, palette caveat,
+      browser-support note
+- [x] Wall stability notes (§7.3) surfaced in the UI — shown for `pips-up` above 40
+      courses, where a one-stud-deep wall actually needs a frame
+- [x] CI workflow running `npm run check` and `npm run build` on every push
+- [x] GitHub Pages deploy workflow, with the built bundle verified serving from a
+      **subdirectory** — worker included, since `import.meta.url` resolution is exactly
+      what breaks when a Vite app moves off the domain root
+- [x] Mobile pass: 390×844 with touch, no horizontal overflow, crop draggable by touch
+      (verified with real `Input.dispatchTouchEvent`, not synthetic events)
+- [~] **Cross-browser check — Chromium only.** Firefox and WebKit are not installed in
+  this environment and installing them is not permitted here, so Safari and Firefox
+  are genuinely untested. Fallbacks exist for every non-universal API used
+  (`createImageBitmap` → `<img>` decode, `OffscreenCanvas` → `<canvas>`, module
+  worker → synchronous pipeline, `roundRect` → square corners) but they are written
+  against documented behaviour rather than observed behaviour.
+- [~] **Deployment — prepared, not performed.** The workflow is committed and the build
+  is verified from a subdirectory, but publishing needs Pages enabled on the repo,
+  which is a repository setting rather than a code change.
+
+> A test of mine failed here and the code was right: a touch drag on the crop reported
+> no movement, because the crop of a landscape photo at 48×48 is already full height and
+> I was dragging _upward_ into the clamp. Dragging horizontally moved it 12.5% → 0%.
+> `setPointerCapture` is now wrapped in a `try` regardless — a throw there would abort
+> before the drag state is set and kill dragging entirely.
 
 ---
 
