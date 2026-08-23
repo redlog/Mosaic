@@ -16,24 +16,40 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** design complete, no code written. Start at Phase 0.
+**Current status:** Phase 0 complete. Start at Phase 1.1.
 
 ---
 
-## Phase 0 — Repository and tooling
+## Phase 0 — Repository and tooling ✅
 
 Nothing else can be verified until the test runner works, so this comes first.
 
-- [ ] `npm create vite@latest` — React + TypeScript template
-- [ ] `tsconfig.json` with `strict: true`, `noUncheckedIndexedAccess: true`
-- [ ] Vitest configured and running; one trivial passing test to prove the harness
-- [ ] ESLint + Prettier, `npm run lint` / `npm run format`
-- [ ] `.gitignore` (node_modules, dist, coverage, .DS_Store)
-- [ ] npm scripts: `dev`, `build`, `preview`, `test`, `test:watch`, `lint`, `format`
-- [ ] `README.md` — what it is, how to run it, link to DESIGN.md
-- [ ] Confirm `npm run build` produces a working static bundle
+- [x] Vite + React + TypeScript scaffold (written by hand rather than via
+      `npm create vite`, so every config option is deliberate)
+- [x] `tsconfig.json` with `strict`, `noUncheckedIndexedAccess`,
+      `exactOptionalPropertyTypes`, `verbatimModuleSyntax`
+- [x] Vitest configured and running; harness test in `src/lego/smoke.test.ts`
+- [x] ESLint 10 flat config + Prettier, `npm run lint` / `npm run format`
+- [x] `.gitignore`, `.prettierignore`
+- [x] npm scripts: `dev`, `build`, `preview`, `test`, `test:watch`, `coverage`,
+      `typecheck`, `lint`, `lint:fix`, `format`, `format:check`, `check`
+- [x] `README.md` — what it is, how to run it, link to DESIGN.md
+- [x] `npm run build` produces a working static bundle, verified by loading it in
+      headless Chromium (React mounts, zero console errors)
 
-**Done when:** `npm run dev`, `npm test`, and `npm run build` all succeed on a clean clone.
+**Done when:** `npm run dev`, `npm test`, and `npm run build` all succeed on a clean
+clone. ✅ — `npm run check` runs typecheck + lint + format + tests in one command.
+
+Notes for future sessions:
+
+- TypeScript is pinned to **6.0.x**, not 7.x: `typescript-eslint` peers on `<6.1.0`.
+  Revisit when it ships TS 7 support.
+- `vite.config.ts` sets `base: './'` so the build works from a subdirectory
+  (GitHub Pages project pages).
+- The test environment is `node`. Component tests opt into jsdom per file with a
+  `@vitest-environment jsdom` docblock.
+- `noUncheckedIndexedAccess` will require `!` in typed-array hot loops.
+  `@typescript-eslint/no-non-null-assertion` is disabled under `src/lego/` only.
 
 ---
 
@@ -42,6 +58,7 @@ Nothing else can be verified until the test runner works, so this comes first.
 Pure, dependency-free, fully tested. No UI in this phase at all.
 
 ### 1.1 Constants and types
+
 - [ ] `src/lego/constants.ts` — `STUD_PITCH_MM`, `BRICK_HEIGHT_MM`, `PLATE_HEIGHT_MM`, `MM_PER_INCH`
 - [ ] `cellSize(orientation)` → `{ w, h }` in mm
 - [ ] `finishedSize(cols, rows, orientation)` → mm, inches, cm
@@ -49,6 +66,7 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 - [ ] Tests: 48×48 pips-out = 15.118″; 48 courses pips-up = 18.142″
 
 ### 1.2 Color math — `src/lego/color.ts`
+
 - [ ] `srgbToLinear` / `linearToSrgb` (piecewise IEC 61966-2-1, **not** `pow(c, 2.2)`)
 - [ ] `linearRgbToXyz`, `xyzToLab` (D65)
 - [ ] `rgbToLab` convenience wrapper
@@ -59,6 +77,7 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
       reference dataset** — do not skip this, a subtly wrong CIEDE2000 fails silently
 
 ### 1.3 Parts catalog — `src/lego/parts.ts`
+
 - [ ] Shape table with design IDs (§7.1): 3005, 3004, 3622, 3010, 3009, 3008,
       3003, 3002, 3001, 2456, 3007, plus 6111, 6112, 2465, 3006 as uncommon
 - [ ] `area(shape)`, `orientationsOf(shape)`, `wallInventory` (1×N only)
@@ -66,6 +85,7 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 - [ ] Tests: no duplicate design IDs; wall inventory is entirely `h === 1`
 
 ### 1.4 Palette — `src/lego/palette.ts` + `palette.data.json`
+
 - [ ] `scripts/build-palette.ts` — fetch from Rebrickable/BrickLink, emit JSON
 - [ ] Run it; commit the generated `palette.data.json`
 - [ ] Fallback checked-in table if the fetch is unavailable
@@ -80,6 +100,7 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 > current production. Flag this in the README and keep the JSON hand-editable.
 
 ### 1.5 Seeded RNG — `src/lego/rng.ts`
+
 - [ ] `mulberry32(seed)` → `{ next(), int(n), bool(), shuffle(arr) }`
 - [ ] Tests: same seed → same sequence; distribution is not obviously broken
 
@@ -90,12 +111,14 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 ## Phase 2 — Image pipeline
 
 ### 2.1 Decode
+
 - [ ] `decodeImage(file)` via `createImageBitmap(file, { imageOrientation: 'from-image' })`
 - [ ] Reject non-PNG/JPEG with a typed error
 - [ ] Warn above 40 MP, offer downscale
 - [ ] Composite transparency over a configurable background
 
 ### 2.2 Framing — `src/lego/frame.ts`
+
 - [ ] Normalized crop rect (0..1), clamped to bounds
 - [ ] `cropAspectFor(cols, rows, orientation)` — must use `cellH`, not 1:1 (§2.4a)
 - [ ] Rotate 90° / flip H / flip V
@@ -105,11 +128,13 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
       (the gamma regression test); pips-up sampling not vertically squashed
 
 ### 2.3 Adjustments — `src/lego/adjust.ts`
+
 - [ ] Brightness, contrast, saturation in linear light, −100..+100
 - [ ] Saturation via luma-preserving interpolation (Rec. 709)
 - [ ] Tests: identity at 0; monotonic; no channel overflow
 
 ### 2.4 Quantization — `src/lego/quantize.ts`
+
 - [ ] Nearest enabled color by ΔE2000, cell Lab computed once
 - [ ] Serpentine Floyd–Steinberg, error diffused in linear light, 0–100% strength
 - [ ] Optional `maxColors` — greedy selection of the N best palette colors
@@ -125,6 +150,7 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 The core value of the app. Both tilers share `score.ts`.
 
 ### 3.1 Shared scoring — `src/lego/score.ts`
+
 - [ ] Owner map (`Int32Array`, placement index per cell)
 - [ ] 4-corner junction counter (§7.1)
 - [ ] `score(placements, owner, weights)` = `W_pieces·pieces + W_ones·ones + W_seam·seams`
@@ -132,6 +158,7 @@ The core value of the app. Both tilers share `score.ts`.
       reused by every tiler test
 
 ### 3.2 Pips-out tiler — `src/lego/tile-flat.ts`
+
 - [ ] Randomized greedy: largest area first, ties shuffled per trial
 - [ ] Both rotations of each non-square shape
 - [ ] Randomized raster origin and row/column-major alternation per trial
@@ -143,6 +170,7 @@ The core value of the app. Both tilers share `score.ts`.
       determinism under a fixed seed
 
 ### 3.3 Pips-up tiler — `src/lego/tile-wall.ts`
+
 - [ ] Maximal same-color run extraction per course
 - [ ] Coin-change DP with seam penalty folded into the state (§7.2)
 - [ ] Bottom-up course order, matching build order
@@ -152,6 +180,7 @@ The core value of the app. Both tilers share `score.ts`.
       (3+2); run of 7 → 2 pieces (4+3); solid rectangle → zero aligned seams
 
 ### 3.4 Dispatch
+
 - [ ] `tile(grid, orientation, settings)` routes to the correct tiler
 - [ ] Emits `TilingStats` including elapsed time and trials actually run
 
@@ -192,12 +221,14 @@ grids (single color, checkerboard, thin stripes, one-cell islands).
 ## Phase 6 — Application UI
 
 ### 6.1 Shell and state
+
 - [ ] `useMosaicStore` — one reducer over the settings tree from §10
 - [ ] Stage memoization so a tiler-weight change does not re-decode the image (§6)
 - [ ] Three-column layout, collapsing to tabs below 900px
 - [ ] Dark mode via `prefers-color-scheme`
 
 ### 6.2 Panels
+
 - [ ] `SourcePanel` — drop zone, file picker, thumbnail, rotate/flip
 - [ ] `CropOverlay` — drag to move, corner handles to resize, scroll to zoom,
       aspect locked to the live mosaic aspect; Fit / Center / Reset
@@ -217,6 +248,7 @@ grids (single color, checkerboard, thin stripes, one-cell islands).
 - [ ] `ExportPanel` — PNG scale selector with pixel dimensions, CSV, XML, save, load
 
 ### 6.3 Accessibility
+
 - [ ] Labels associated with every control; full keyboard reachability
 - [ ] Color names always present as text, never color alone
 - [ ] `aria-label` on the preview summarizing the current result
@@ -240,7 +272,7 @@ grids (single color, checkerboard, thin stripes, one-cell islands).
 
 - [ ] `src/lego/project.ts` — serialize the full state tree from §10
 - [ ] RLE encode/decode for the grid (`rle-v1`)
-- [ ] Embed source as a data URL, with a *Settings only* save option
+- [ ] Embed source as a data URL, with a _Settings only_ save option
 - [ ] Load: validate `format` and `version`, run migrations, reject unknown versions
       with a clear message
 - [ ] Recompute the tiling on load rather than storing it
@@ -281,11 +313,11 @@ From DESIGN.md §16, in rough value-per-effort order:
 
 ## Milestones
 
-| Milestone | Phases | Definition |
-|---|---|---|
-| **M1 — Algorithms proven** | 0–4 | An image becomes a validated tiling and a parts list, entirely in Node tests. No UI. |
-| **M2 — End to end** | 5–6 | Upload a photo in a browser, see the mosaic, download the PNG and the parts list. |
-| **M3 — Complete v1** | 7–9 | Responsive under load, projects save and load, edge cases handled, deployed. |
+| Milestone                  | Phases | Definition                                                                           |
+| -------------------------- | ------ | ------------------------------------------------------------------------------------ |
+| **M1 — Algorithms proven** | 0–4    | An image becomes a validated tiling and a parts list, entirely in Node tests. No UI. |
+| **M2 — End to end**        | 5–6    | Upload a photo in a browser, see the mosaic, download the PNG and the parts list.    |
+| **M3 — Complete v1**       | 7–9    | Responsive under load, projects save and load, edge cases handled, deployed.         |
 
 M1 is the risky part and it is the part that can be verified without a browser, which is
 why it comes first. M2 and M3 are conventional application work.

@@ -1,6 +1,6 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved, implementation not started
+**Status:** design approved; Phase 0 (toolchain) complete, Phase 1 next
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -69,19 +69,19 @@ PIPS UP  (stacked wall, studs facing the ceiling, viewed edge-on)
 
 ### 2.2 Constants
 
-| Constant | Value | Note |
-|---|---|---|
-| `STUD_PITCH_MM` | 8.0 | center-to-center stud spacing |
-| `BRICK_HEIGHT_MM` | 9.6 | brick height, exactly 1.2 × pitch |
-| `PLATE_HEIGHT_MM` | 3.2 | unused in v1, defined for future |
-| `MM_PER_INCH` | 25.4 | |
+| Constant          | Value | Note                              |
+| ----------------- | ----- | --------------------------------- |
+| `STUD_PITCH_MM`   | 8.0   | center-to-center stud spacing     |
+| `BRICK_HEIGHT_MM` | 9.6   | brick height, exactly 1.2 × pitch |
+| `PLATE_HEIGHT_MM` | 3.2   | unused in v1, defined for future  |
+| `MM_PER_INCH`     | 25.4  |                                   |
 
 ### 2.3 Cell dimensions and finished size
 
-| Orientation | `cellW` | `cellH` | Finished width | Finished height |
-|---|---|---|---|---|
-| `pips-out` | 8.0 mm | 8.0 mm | `cols × 8.0` mm | `rows × 8.0` mm |
-| `pips-up` | 8.0 mm | 9.6 mm | `cols × 8.0` mm | `rows × 9.6` mm |
+| Orientation | `cellW` | `cellH` | Finished width  | Finished height |
+| ----------- | ------- | ------- | --------------- | --------------- |
+| `pips-out`  | 8.0 mm  | 8.0 mm  | `cols × 8.0` mm | `rows × 8.0` mm |
+| `pips-up`   | 8.0 mm  | 9.6 mm  | `cols × 8.0` mm | `rows × 9.6` mm |
 
 Worked example, 48 × 48 grid:
 
@@ -106,21 +106,39 @@ modes need separate tilers rather than a shared one with a different aspect cons
 
 ## 3. Technology stack
 
-| Concern | Choice | Rationale |
-|---|---|---|
-| Build | Vite 5 | fast dev server, static output, zero config for TS |
-| Language | TypeScript, `strict: true` | the algorithm code benefits most from types |
-| UI | React 18 + function components | settings-panel state is the bulk of the UI work |
-| State | plain `useState` / `useReducer` in one store hook | app is small; a state library is overkill |
-| Styling | CSS Modules + CSS custom properties | no runtime cost, easy dark mode |
-| Heavy compute | Web Worker (`mosaic.worker.ts`) | quantize + tile must not block the UI |
-| Rasterization | Canvas 2D / OffscreenCanvas | no WebGL needed at these sizes |
-| Tests | Vitest | shares Vite config, fast |
-| Lint/format | ESLint + Prettier | |
-| Deploy | static build, GitHub Pages compatible | no backend |
+| Concern       | Choice                                            | Rationale                                          |
+| ------------- | ------------------------------------------------- | -------------------------------------------------- |
+| Build         | Vite 8                                            | fast dev server, static output, zero config for TS |
+| Language      | TypeScript 6, `strict: true`                      | the algorithm code benefits most from types        |
+| UI            | React 19 + function components                    | settings-panel state is the bulk of the UI work    |
+| State         | plain `useState` / `useReducer` in one store hook | app is small; a state library is overkill          |
+| Styling       | CSS Modules + CSS custom properties               | no runtime cost, easy dark mode                    |
+| Heavy compute | Web Worker (`mosaic.worker.ts`)                   | quantize + tile must not block the UI              |
+| Rasterization | Canvas 2D / OffscreenCanvas                       | no WebGL needed at these sizes                     |
+| Tests         | Vitest 4                                          | shares Vite config, fast                           |
+| Lint/format   | ESLint 10 + Prettier 3                            |                                                    |
+| Deploy        | static build, GitHub Pages compatible             | no backend                                         |
 
 **No runtime network access.** The palette is compiled into the bundle. The app works
 offline once loaded.
+
+> **Why TypeScript 6 rather than 7.** TypeScript 7 is released, but
+> `typescript-eslint` declares a peer range of `>=4.8.4 <6.1.0` and will not install
+> alongside it. Typed lint rules are worth more here than being on the newest compiler,
+> so TypeScript is pinned to 6.0.x. Revisit once `typescript-eslint` ships TS 7 support.
+
+### 3.0 Compiler strictness
+
+Beyond `strict`, the project enables `noUncheckedIndexedAccess`,
+`exactOptionalPropertyTypes`, `verbatimModuleSyntax`, `noUnusedLocals`, and
+`noUnusedParameters`.
+
+`noUncheckedIndexedAccess` deserves a note because it cuts both ways. It is genuinely
+valuable for the map- and record-shaped lookups this app is full of (`palette[key]`,
+`shapesByDesignId[id]`), where a miss is a real bug. It is _noise_ in the numeric
+kernels, where `grid.colors[i]` is provably in range and TypeScript still widens it to
+`number | undefined`. The kernels absorb this with non-null assertions, and ESLint
+allows `!` only under `src/lego/` so the escape hatch stays where the hot loops are.
 
 ### 3.1 Project structure
 
@@ -184,35 +202,35 @@ touches the DOM, so it is testable in isolation and reusable from a CLI later.
 export type Orientation = 'pips-out' | 'pips-up';
 
 export interface BrickShape {
-  designId: string;   // BrickLink / LEGO part number, e.g. "3001"
-  name: string;       // "Brick 2 x 4"
-  w: number;          // studs, long axis
-  h: number;          // studs, short axis (always 1 for wall inventory)
+  designId: string; // BrickLink / LEGO part number, e.g. "3001"
+  name: string; // "Brick 2 x 4"
+  w: number; // studs, long axis
+  h: number; // studs, short axis (always 1 for wall inventory)
 }
 
 export interface LegoColor {
-  key: string;          // stable slug, "dark-turquoise"
-  name: string;         // "Dark Turquoise"
-  hex: string;          // "#008F9B"
+  key: string; // stable slug, "dark-turquoise"
+  name: string; // "Dark Turquoise"
+  hex: string; // "#008F9B"
   rgb: [number, number, number];
-  lab: [number, number, number];   // precomputed at load
-  blColorId: number;    // BrickLink color ID, required for XML export
+  lab: [number, number, number]; // precomputed at load
+  blColorId: number; // BrickLink color ID, required for XML export
   ldrawId?: number;
-  shapes: string[];     // design IDs this color is actually produced in
+  shapes: string[]; // design IDs this color is actually produced in
 }
 
 /** Result of quantization: one palette index per cell, row-major. */
 export interface Grid {
   cols: number;
   rows: number;
-  colors: Int16Array;   // length cols*rows; index into the active palette
+  colors: Int16Array; // length cols*rows; index into the active palette
 }
 
 export interface Placement {
   designId: string;
-  col: number;          // top-left cell
+  col: number; // top-left cell
   row: number;
-  w: number;            // as placed, after any rotation
+  w: number; // as placed, after any rotation
   h: number;
   colorIdx: number;
 }
@@ -227,8 +245,8 @@ export interface Tiling {
 
 export interface TilingStats {
   pieces: number;
-  ones: number;           // count of 1×1 bricks
-  alignedSeams: number;   // 4-corner junctions (flat) / stacked seams (wall)
+  ones: number; // count of 1×1 bricks
+  alignedSeams: number; // 4-corner junctions (flat) / stacked seams (wall)
   score: number;
   seed: number;
   trials: number;
@@ -286,7 +304,7 @@ and emits `src/lego/palette.data.json`. If the fetch is unavailable the script f
 back to a checked-in table.
 
 > **Accuracy caveat:** the fallback hex values and BrickLink color IDs are drawn from
-> reference tables and are *not independently verified against current production*.
+> reference tables and are _not independently verified against current production_.
 > `palette.data.json` is deliberately a plain, hand-editable file. Any value in it can
 > be corrected without touching code, and the test suite validates structure (every
 > color has a numeric `blColorId`, a valid hex, and a non-empty `shapes` array) rather
@@ -342,7 +360,7 @@ Tiling        list of placements
 ### 6.1 Decode
 
 ```ts
-createImageBitmap(file, { imageOrientation: 'from-image' })
+createImageBitmap(file, { imageOrientation: 'from-image' });
 ```
 
 The `imageOrientation` flag is required — without it, every photo taken on a phone in
@@ -436,14 +454,14 @@ as large, and as pleasingly-offset bricks as possible.
 
 Default inventory:
 
-| Part | Shape | | Part | Shape |
-|---|---|---|---|---|
-| 3005 | 1 × 1 | | 3003 | 2 × 2 |
-| 3004 | 1 × 2 | | 3002 | 2 × 3 |
-| 3622 | 1 × 3 | | 3001 | 2 × 4 |
-| 3010 | 1 × 4 | | 2456 | 2 × 6 |
-| 3009 | 1 × 6 | | 3007 | 2 × 8 |
-| 3008 | 1 × 8 | | | |
+| Part | Shape |     | Part | Shape |
+| ---- | ----- | --- | ---- | ----- |
+| 3005 | 1 × 1 |     | 3003 | 2 × 2 |
+| 3004 | 1 × 2 |     | 3002 | 2 × 3 |
+| 3622 | 1 × 3 |     | 3001 | 2 × 4 |
+| 3010 | 1 × 4 |     | 2456 | 2 × 6 |
+| 3009 | 1 × 6 |     | 3007 | 2 × 8 |
+| 3008 | 1 × 8 |     |      |       |
 
 Optional long bricks, off by default: 6111 (1×10), 6112 (1×12), 2465 (1×16), 3006 (2×10).
 They are pricier per stud and thin in color coverage.
@@ -487,7 +505,7 @@ grids degrade to fewer trials rather than to a frozen tab. Seed is stored in the
 file, so a given project always reproduces the identical tiling.
 
 **Aligned-seam detection (the 4-corner junction).** For every interior lattice point,
-look at the four cells meeting there. If all four belong to four *different* bricks, the
+look at the four cells meeting there. If all four belong to four _different_ bricks, the
 bricks form a `+` junction — weaker interlock and visually noisy. Counting them is one
 O(cols × rows) pass over the owner map.
 
@@ -532,7 +550,7 @@ constant.
 
 **Lookback depth.** Penalizing against only the previous course still permits a seam to
 reappear every other course, which is a real fracture line in a one-stud-deep wall. So
-`seamPenalty(col)` is a weighted sum over the previous *K* courses, default `K = 2` with
+`seamPenalty(col)` is a weighted sum over the previous _K_ courses, default `K = 2` with
 weights `[1.0, 0.4]`. The DP is unchanged — only the penalty lookup gets deeper.
 
 Complexity is `O(rows × cols × |lengths| )`, effectively instant. Each course is exactly
@@ -567,7 +585,7 @@ build guide notes will state:
 
 ```ts
 interface RenderOptions {
-  pxPerStud: number;        // default 24
+  pxPerStud: number; // default 24
   mode: 'build' | 'clean';
   background: string;
   padding: number;
@@ -642,41 +660,47 @@ Below 900px the layout collapses to a single column with a tab bar:
 ### 9.2 Panels
 
 **Source**
+
 - Drop zone and file picker (`image/png`, `image/jpeg`).
 - Thumbnail with a draggable, resizable crop rectangle. Drag to move, corner handles to
   resize, scroll to zoom. Aspect locked to the mosaic aspect; the lock updates live when
   the mosaic dimensions change.
-- Buttons: *Fit whole image*, *Center*, *Reset*.
+- Buttons: _Fit whole image_, _Center_, _Reset_.
 - Rotate 90° CW / CCW, flip horizontal / vertical.
 
 **Mosaic**
+
 - Orientation: two radio cards, each with the small diagram from §2.1 and its cell ratio.
 - Width in bricks, height in bricks — number input plus slider, range 8–256.
-- *Link to image aspect* toggle: when on, editing width recomputes height from the crop
+- _Link to image aspect_ toggle: when on, editing width recomputes height from the crop
   aspect, correctly accounting for the 5:6 cell in pips-up.
 - Live readout: finished size in inches **and** cm, total studs, and in pips-out the
   number of 48×48 baseplates required.
 
 **Adjust**
+
 - Brightness, contrast, saturation sliders, with reset.
-- Dither: *Off* / *Floyd–Steinberg* with a 0–100% strength slider. Shows the resulting
+- Dither: _Off_ / _Floyd–Steinberg_ with a 0–100% strength slider. Shows the resulting
   1×1 count beside it so the cost of dithering is visible at the moment of choosing it.
 
 **Palette**
+
 - Scrollable list: swatch, name, enable checkbox, and a live usage count.
-- Bulk actions: all, none, *keep only colors used in the current result*.
-- *Max distinct colors* (default off).
-- *Strict availability* toggle, on by default.
+- Bulk actions: all, none, _keep only colors used in the current result_.
+- _Max distinct colors_ (default off).
+- _Strict availability_ toggle, on by default.
 
 **Algorithm**
+
 - Brick inventory checkboxes, grouped 1×N and 2×N, with the long bricks in a
   collapsed "uncommon" group.
 - Collapsed advanced section: the three objective weights, restart count, stagger
-  lookback depth, and the seed with a *randomize* button.
-- *Rebuild* button, plus an auto-rebuild toggle. Quantization is always live and
+  lookback depth, and the seed with a _randomize_ button.
+- _Rebuild_ button, plus an auto-rebuild toggle. Quantization is always live and
   debounced 300 ms; tiling auto-runs only below 96×96 to avoid constant recomputation.
 
 **Export**
+
 - PNG (scale 1× / 2× / 4×, with the resulting pixel dimensions shown), CSV,
   BrickLink XML, Save Project, Load Project.
 
@@ -704,35 +728,46 @@ A project is one JSON file. Self-contained by default.
     "name": "portrait.jpg",
     "width": 4032,
     "height": 3024,
-    "dataUrl": "data:image/jpeg;base64,...",   // optional, see below
-    "sha256": "9f2c..."
+    "dataUrl": "data:image/jpeg;base64,...", // optional, see below
+    "sha256": "9f2c...",
   },
 
-  "crop":      { "x": 0.10, "y": 0.05, "w": 0.80, "h": 0.80 },  // normalized
+  "crop": { "x": 0.1, "y": 0.05, "w": 0.8, "h": 0.8 }, // normalized
   "transform": { "rotate": 0, "flipH": false, "flipV": false },
-  "mosaic":    { "orientation": "pips-out", "cols": 48, "rows": 48 },
-  "adjust":    { "brightness": 0, "contrast": 12, "saturation": -5 },
+  "mosaic": { "orientation": "pips-out", "cols": 48, "rows": 48 },
+  "adjust": { "brightness": 0, "contrast": 12, "saturation": -5 },
 
   "quantize": {
     "dither": "none",
     "ditherStrength": 0,
     "maxColors": null,
     "strictAvailability": true,
-    "enabledColors": ["white", "black", "red", "..."]
+    "enabledColors": ["white", "black", "red", "..."],
   },
 
   "tiler": {
-    "inventory": ["3005", "3004", "3622", "3010", "3009", "3008",
-                  "3003", "3002", "3001", "2456", "3007"],
+    "inventory": [
+      "3005",
+      "3004",
+      "3622",
+      "3010",
+      "3009",
+      "3008",
+      "3003",
+      "3002",
+      "3001",
+      "2456",
+      "3007",
+    ],
     "weights": { "pieces": 1.0, "ones": 0.5, "seam": 0.25 },
     "restarts": 200,
     "seed": 1837462,
-    "staggerLookback": [1.0, 0.4]
+    "staggerLookback": [1.0, 0.4],
   },
 
   "palette": {
     "id": "builtin-v1",
-    "overrides": [{ "key": "dark-turquoise", "hex": "#00939C" }]
+    "overrides": [{ "key": "dark-turquoise", "hex": "#00939C" }],
   },
 
   "grid": {
@@ -740,8 +775,8 @@ A project is one JSON file. Self-contained by default.
     "rows": 48,
     "encoding": "rle-v1",
     "colorKeys": ["white", "red", "black"],
-    "data": [[0, 12], [1, 5], [2, 31], "..."]   // [colorIndex, runLength]
-  }
+    "data": [[0, 12], [1, 5], [2, 31], "..."], // [colorIndex, runLength]
+  },
 }
 ```
 
@@ -752,7 +787,7 @@ project file always opens into something meaningful even without the source imag
 
 **The source image is embedded by default, and optional.** Embedding makes the file
 truly self-contained and re-editable (re-crop, re-quantize, change dimensions). It also
-makes a 12-megapixel photo into a ~15 MB JSON file, so a *Settings only* toggle at save
+makes a 12-megapixel photo into a ~15 MB JSON file, so a _Settings only_ toggle at save
 time drops `source.dataUrl`. Loading such a file still renders, still exports, still
 re-tiles — only re-cropping and re-quantizing are unavailable, and the UI says so
 plainly rather than failing at the moment of use.
@@ -836,28 +871,33 @@ Vitest over the pure modules in `src/lego/`. The invariants below are the contra
 verified manually.
 
 **color.ts**
+
 - sRGB ↔ linear round-trips to within 1e-6.
 - Known RGB → Lab conversions (white, black, mid-gray, primaries).
 - `deltaE2000` against the Sharma/Wu/Dalal 34-pair reference dataset. Mandatory —
   CIEDE2000 is easy to get subtly wrong and the error is invisible without this test.
 
 **palette.ts**
+
 - Every entry has a valid hex, a numeric `blColorId`, and a non-empty `shapes` array.
 - Every design ID referenced in `shapes` exists in the parts catalog.
 - Filtering by enabled set and by strict availability behaves as specified.
 
 **frame.ts**
+
 - A solid-color source produces uniform cells.
 - A 50/50 black-and-white source averages to linear 0.5 (sRGB ≈ 188, **not** 128).
   This is the gamma-correctness regression test.
 - Pips-up sampling of a known-aspect test image is not vertically squashed.
 
 **quantize.ts**
+
 - A monochrome image maps to exactly one color.
 - Dither strength 0 is bit-identical to dithering off.
 - Colors disabled in the palette never appear in the output.
 
 **tile-flat.ts / tile-wall.ts** — the six invariants from §7.4, plus:
+
 - A solid 8×8 region of a fully-available color tiles in exactly 8 pieces using 2×8s.
 - Wall: a run of 5 tiles as 2 pieces (3+2); a run of 7 as 2 pieces (4+3).
 - Wall: a solid rectangle produces zero aligned seams under default weights.
@@ -877,36 +917,36 @@ error node.
 
 ## 14. Edge cases and error handling
 
-| Case | Behavior |
-|---|---|
-| Non-image or corrupt file | Friendly inline error, prior state retained |
-| Image > 40 MP | Warn, offer automatic downscale |
-| EXIF-rotated JPEG | Handled via `imageOrientation: 'from-image'` |
-| Transparent or grayscale PNG | Composited over the configured background |
-| All palette colors disabled | Build blocked with an explanatory message |
-| Color enabled but no legal shapes under strict mode | Auto-disabled, reported in UI |
-| Color with no `blColorId` | Excluded from XML export, reported with quantities |
-| Grid above 256 in either dimension | Warning; hard cap at 400 |
-| Crop dragged outside image bounds | Clamped to the source rectangle |
-| Load of a newer `version` | Rejected with a clear message, no partial read |
-| Load of a settings-only project | Renders and exports; re-crop/re-quantize disabled with a note |
+| Case                                                | Behavior                                                      |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| Non-image or corrupt file                           | Friendly inline error, prior state retained                   |
+| Image > 40 MP                                       | Warn, offer automatic downscale                               |
+| EXIF-rotated JPEG                                   | Handled via `imageOrientation: 'from-image'`                  |
+| Transparent or grayscale PNG                        | Composited over the configured background                     |
+| All palette colors disabled                         | Build blocked with an explanatory message                     |
+| Color enabled but no legal shapes under strict mode | Auto-disabled, reported in UI                                 |
+| Color with no `blColorId`                           | Excluded from XML export, reported with quantities            |
+| Grid above 256 in either dimension                  | Warning; hard cap at 400                                      |
+| Crop dragged outside image bounds                   | Clamped to the source rectangle                               |
+| Load of a newer `version`                           | Rejected with a clear message, no partial read                |
+| Load of a settings-only project                     | Renders and exports; re-crop/re-quantize disabled with a note |
 
 ---
 
 ## 15. Defaults
 
-| Setting | Default | Reasoning |
-|---|---|---|
-| Orientation | `pips-out` | square cells, most intuitive first result |
-| Dimensions | 48 × 48 | one standard baseplate, ~15″ |
-| Max brick length | 8 studs | longer bricks cost more per stud and have thin color coverage |
-| 2×N bricks | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change |
-| Dithering | off | it directly fights the large-brick goal |
-| Strict availability | on | a parts list you can actually fill |
-| `W_pieces` / `W_ones` / `W_seam` | 1.0 / 0.5 / 0.25 | |
-| Restarts (pips-out) | 200, 1.5 s budget | |
-| Stagger lookback (pips-up) | `[1.0, 0.4]` | two courses back, decaying |
-| Render | build view, 24 px/stud, 1× | |
+| Setting                          | Default                            | Reasoning                                                     |
+| -------------------------------- | ---------------------------------- | ------------------------------------------------------------- |
+| Orientation                      | `pips-out`                         | square cells, most intuitive first result                     |
+| Dimensions                       | 48 × 48                            | one standard baseplate, ~15″                                  |
+| Max brick length                 | 8 studs                            | longer bricks cost more per stud and have thin color coverage |
+| 2×N bricks                       | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change   |
+| Dithering                        | off                                | it directly fights the large-brick goal                       |
+| Strict availability              | on                                 | a parts list you can actually fill                            |
+| `W_pieces` / `W_ones` / `W_seam` | 1.0 / 0.5 / 0.25                   |                                                               |
+| Restarts (pips-out)              | 200, 1.5 s budget                  |                                                               |
+| Stagger lookback (pips-up)       | `[1.0, 0.4]`                       | two courses back, decaying                                    |
+| Render                           | build view, 24 px/stud, 1×         |                                                               |
 
 ---
 
