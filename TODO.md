@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phase 0 complete. Start at Phase 1.1.
+**Current status:** Phases 0 and 1 complete. Start at Phase 2.1.
 
 ---
 
@@ -53,58 +53,77 @@ Notes for future sessions:
 
 ---
 
-## Phase 1 — Domain core
+## Phase 1 — Domain core ✅
 
 Pure, dependency-free, fully tested. No UI in this phase at all.
 
-### 1.1 Constants and types
+### 1.1 Constants and types ✅
 
-- [ ] `src/lego/constants.ts` — `STUD_PITCH_MM`, `BRICK_HEIGHT_MM`, `PLATE_HEIGHT_MM`, `MM_PER_INCH`
-- [ ] `cellSize(orientation)` → `{ w, h }` in mm
-- [ ] `finishedSize(cols, rows, orientation)` → mm, inches, cm
-- [ ] `src/lego/types.ts` — all types from §4
-- [ ] Tests: 48×48 pips-out = 15.118″; 48 courses pips-up = 18.142″
+- [x] `src/lego/constants.ts` — `STUD_PITCH_MM`, `BRICK_HEIGHT_MM`, `PLATE_HEIGHT_MM`, `MM_PER_INCH`
+- [x] `cellSize(orientation)` → `{ w, h }` in mm
+- [x] `finishedSize(cols, rows, orientation)` → mm, inches, cm, stud count
+- [x] `mosaicAspect()` — the crop-aspect lock that keeps pips-up from squashing
+- [x] `baseplatesFor()`, plus the grid-dimension limits
+- [x] `src/lego/types.ts` — all types from §4
+- [x] Tests: 48×48 pips-out = 15.118″; 48 courses pips-up = 18.142″
 
-### 1.2 Color math — `src/lego/color.ts`
+### 1.2 Color math — `src/lego/color.ts` ✅
 
-- [ ] `srgbToLinear` / `linearToSrgb` (piecewise IEC 61966-2-1, **not** `pow(c, 2.2)`)
-- [ ] `linearRgbToXyz`, `xyzToLab` (D65)
-- [ ] `rgbToLab` convenience wrapper
-- [ ] `deltaE2000(lab1, lab2)`
-- [ ] `hexToRgb` / `rgbToHex`
-- [ ] `darkenLab(color, amount)` — used by the renderer for strokes and seams
-- [ ] Tests: round-trips; known Lab values; **ΔE2000 vs the Sharma/Wu/Dalal 34-pair
-      reference dataset** — do not skip this, a subtly wrong CIEDE2000 fails silently
+- [x] `srgbToLinear` / `linearToSrgb` (piecewise IEC 61966-2-1, **not** `pow(c, 2.2)`)
+- [x] `linearRgbToXyz`, `xyzToLab` (D65), plus the inverses for `labToRgb`
+- [x] `rgbToLab`, `linearRgbToLab` (skips the 0-255 round trip in hot paths)
+- [x] `deltaE2000(lab1, lab2)`
+- [x] `hexToRgb` / `rgbToHex` / `isValidHex`
+- [x] `darkenLab(color, amount)` — used by the renderer for strokes and seams
+- [x] Tests: round-trips; known Lab values; **ΔE2000 vs the Sharma/Wu/Dalal 34-pair
+      reference dataset**, all 34 passing to 4 decimal places, plus symmetry
 
-### 1.3 Parts catalog — `src/lego/parts.ts`
+> `darkenLab` interpolates toward black in Lab rather than scaling lightness alone.
+> Holding chroma fixed while dropping L walks out of the sRGB gamut and clamps to a
+> color that is neither dark nor the right hue (#C91A09 fully darkened landed on
+> #4E0000). Scaling L, a, and b together keeps the hue angle and stays in gamut.
 
-- [ ] Shape table with design IDs (§7.1): 3005, 3004, 3622, 3010, 3009, 3008,
+### 1.3 Parts catalog — `src/lego/parts.ts` ✅
+
+- [x] Shape table with design IDs (§7.1): 3005, 3004, 3622, 3010, 3009, 3008,
       3003, 3002, 3001, 2456, 3007, plus 6111, 6112, 2465, 3006 as uncommon
-- [ ] `area(shape)`, `orientationsOf(shape)`, `wallInventory` (1×N only)
-- [ ] `DEFAULT_FLAT_INVENTORY`, `DEFAULT_WALL_INVENTORY`
-- [ ] Tests: no duplicate design IDs; wall inventory is entirely `h === 1`
+- [x] `area(shape)`, `orientationsOf(shape)`, `WALL_SHAPES` (1×N only)
+- [x] `DEFAULT_FLAT_INVENTORY`, `DEFAULT_WALL_INVENTORY`, `defaultInventoryFor()`
+- [x] `wallLengths()` / `wallShapeOfLength()` — the run lengths the Phase 3 DP needs
+- [x] Tests: no duplicate design IDs; wall inventory is entirely `h === 1`
 
-### 1.4 Palette — `src/lego/palette.ts` + `palette.data.json`
+### 1.4 Palette — `src/lego/palette.ts` + `palette.data.json` ✅
 
-- [ ] `scripts/build-palette.ts` — fetch from Rebrickable/BrickLink, emit JSON
-- [ ] Run it; commit the generated `palette.data.json`
-- [ ] Fallback checked-in table if the fetch is unavailable
-- [ ] Per-color `shapes` availability array (§5.2) — the part that makes output buildable
-- [ ] `loadPalette(overrides)` — parses, precomputes Lab, validates
-- [ ] `enabledColors(palette, keys)`, `legalShapes(color, inventory, strict)`
-- [ ] Tests: structural validation only (valid hex, numeric `blColorId`, non-empty
-      `shapes`, every design ID exists in the catalog) — **not** assertions on specific
-      hex values, which are hand-correctable data
+- [x] `scripts/palette-source.ts` — CSV/JSON parsing and assembly (pure, tested)
+- [x] `scripts/build-palette.ts` — CLI wrapper, `npm run palette:build -- <input>`
+- [x] Fallback checked-in table: 42 curated colors
+- [x] Per-color `shapes` availability array (§5.2) — the part that makes output buildable
+- [x] `loadPalette(overrides)` — parses, precomputes RGB + Lab, validates, throws on
+      structural errors
+- [x] `enabledColors()`, `legalShapes()`, `unusableColors()`, `colorsMissingBricklinkId()`
+- [x] Tests: structural validation only (valid hex, integer-or-null `blColorId`,
+      non-empty `shapes`, every design ID exists in the catalog) — **not** assertions on
+      specific hex values, which are hand-correctable data
 
-> The generated palette's hex values and BrickLink color IDs are unverified against
-> current production. Flag this in the README and keep the JSON hand-editable.
+> **The palette data is unverified and needs replacing.** The environment's network
+> policy denies rebrickable.com and bricklink.com (403 on CONNECT), so no live fetch
+> was possible. The shipped table is compiled from reference knowledge: hex values are
+> reasonable, BrickLink color IDs are plausible but unconfirmed, and the per-shape
+> availability is a coarse four-tier estimate, not real catalog data.
+>
+> `provenance.verified` is `false`, `loadPalette` surfaces that as a warning, and colors
+> with a null `blColorId` are excluded from XML export rather than guessed. To replace
+> it: `npm run palette:build -- colors.csv --verified`. The CSV needs `name` and `hex`
+> columns; `bl_id`, `shapes`, and `tier` are optional.
 
-### 1.5 Seeded RNG — `src/lego/rng.ts`
+### 1.5 Seeded RNG — `src/lego/rng.ts` ✅
 
-- [ ] `mulberry32(seed)` → `{ next(), int(n), bool(), shuffle(arr) }`
-- [ ] Tests: same seed → same sequence; distribution is not obviously broken
+- [x] `mulberry32(seed)` → `{ next(), int(n), bool(), shuffle(), pick() }`
+- [x] `randomSeed()` for the UI's randomize button
+- [x] Tests: same seed → same sequence; uniformity; shuffle is a non-mutating permutation
 
-**Done when:** `src/lego/` has no React import and the whole suite passes.
+**Done when:** `src/lego/` has no React import and the whole suite passes. ✅
+148 tests, 97% statement coverage over `src/lego/`.
 
 ---
 

@@ -19,7 +19,8 @@ restored as a single JSON file.
 
 ## Status
 
-Phase 0 complete — the toolchain is scaffolded and verified. No domain logic yet.
+Phases 0 and 1 complete — toolchain plus the domain core (geometry, color science,
+parts catalog, palette, seeded RNG). 148 tests. No image pipeline or UI yet.
 
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan
@@ -57,7 +58,25 @@ DOM belongs in `src/components/`.
 
 ## A note on the color data
 
-The palette ships as a plain, hand-editable JSON file. Its hex values and BrickLink
-color IDs come from reference tables and are **not independently verified against current
-production**, so treat the parts list as a strong starting point rather than gospel —
-and correct the JSON directly if you find a wrong value.
+**The shipped palette is unverified.** `src/lego/palette.data.json` holds 42 curated
+colors compiled from reference knowledge, without access to a live catalog. Hex values
+are reasonable, BrickLink color IDs are plausible but unconfirmed, and the per-shape
+availability lists are a coarse four-tier estimate rather than real catalog data.
+
+The code is built around that uncertainty rather than hiding it: the file carries a
+`provenance.verified: false` flag that `loadPalette` surfaces as a warning, colors with
+no BrickLink ID are omitted from the Wanted List export instead of being guessed, and
+the tests validate structure only — never specific hex values — so correcting the data
+never looks like a regression.
+
+To replace it with real data:
+
+```bash
+npm run palette:build -- colors.csv --verified
+```
+
+The input may be CSV or JSON, local or a URL. Required columns are `name` and one of
+`hex` / `rgb` (accepting `#RRGGBB`, `RRGGBB`, or `r,g,b`). Optional: `key`, `bl_id`,
+`shapes` (space-separated design IDs), and `tier` (`full` / `broad` / `common` /
+`limited`, expanded into per-shape availability). The script validates before writing
+and refuses to emit a file with structural errors.

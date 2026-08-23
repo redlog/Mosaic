@@ -19,7 +19,7 @@ export default defineConfig({
     // default test environment is node. Component tests, when they arrive,
     // opt into jsdom per-file with a `@vitest-environment` docblock.
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/lego/**'],

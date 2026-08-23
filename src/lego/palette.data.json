@@ -1,0 +1,681 @@
+{
+  "id": "builtin-v1",
+  "provenance": {
+    "source": "hand-curated fallback table",
+    "generated": "2026-08-23",
+    "verified": false,
+    "note": "UNVERIFIED. Hex values, BrickLink color IDs, and per-shape availability are a best-effort starting point compiled without access to a live catalog, not data checked against current production. Availability in particular is a coarse tier estimate rather than real per-part data. Correct this file directly, or regenerate it with scripts/build-palette.ts from an authoritative export; nothing in the code depends on these values."
+  },
+  "colors": [
+    {
+      "key": "white",
+      "name": "White",
+      "hex": "#FFFFFF",
+      "blColorId": 1,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "very-light-bluish-gray",
+      "name": "Very Light Bluish Gray",
+      "hex": "#E6E3DA",
+      "blColorId": 99,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "light-bluish-gray",
+      "name": "Light Bluish Gray",
+      "hex": "#A0A5A9",
+      "blColorId": 86,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-bluish-gray",
+      "name": "Dark Bluish Gray",
+      "hex": "#6C6E68",
+      "blColorId": 85,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "black",
+      "name": "Black",
+      "hex": "#05131D",
+      "blColorId": 11,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "flat-silver",
+      "name": "Flat Silver",
+      "hex": "#898788",
+      "blColorId": 95,
+      "shapes": [
+        "3005",
+        "3004",
+        "3010",
+        "3003"
+      ]
+    },
+    {
+      "key": "red",
+      "name": "Red",
+      "hex": "#C91A09",
+      "blColorId": 5,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-red",
+      "name": "Dark Red",
+      "hex": "#720E0F",
+      "blColorId": 59,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "coral",
+      "name": "Coral",
+      "hex": "#FF698F",
+      "blColorId": 220,
+      "shapes": [
+        "3005",
+        "3004",
+        "3010",
+        "3003"
+      ]
+    },
+    {
+      "key": "bright-pink",
+      "name": "Bright Pink",
+      "hex": "#E4ADC8",
+      "blColorId": 104,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "dark-pink",
+      "name": "Dark Pink",
+      "hex": "#C870A0",
+      "blColorId": 47,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "magenta",
+      "name": "Magenta",
+      "hex": "#923978",
+      "blColorId": 71,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "orange",
+      "name": "Orange",
+      "hex": "#FE8A18",
+      "blColorId": 4,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-orange",
+      "name": "Dark Orange",
+      "hex": "#A95500",
+      "blColorId": 68,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "bright-light-orange",
+      "name": "Bright Light Orange",
+      "hex": "#F8BB3D",
+      "blColorId": 110,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "light-nougat",
+      "name": "Light Nougat",
+      "hex": "#F6D7B3",
+      "blColorId": 90,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "nougat",
+      "name": "Nougat",
+      "hex": "#D09168",
+      "blColorId": 28,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "medium-nougat",
+      "name": "Medium Nougat",
+      "hex": "#AA7D55",
+      "blColorId": 150,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "tan",
+      "name": "Tan",
+      "hex": "#E4CD9E",
+      "blColorId": 2,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-tan",
+      "name": "Dark Tan",
+      "hex": "#958A73",
+      "blColorId": 69,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "reddish-brown",
+      "name": "Reddish Brown",
+      "hex": "#582A12",
+      "blColorId": 88,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-brown",
+      "name": "Dark Brown",
+      "hex": "#352100",
+      "blColorId": 120,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "yellow",
+      "name": "Yellow",
+      "hex": "#F2CD37",
+      "blColorId": 3,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "bright-light-yellow",
+      "name": "Bright Light Yellow",
+      "hex": "#FFF03A",
+      "blColorId": 103,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "lime",
+      "name": "Lime",
+      "hex": "#BBE90B",
+      "blColorId": 34,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "bright-green",
+      "name": "Bright Green",
+      "hex": "#4B9F4A",
+      "blColorId": 36,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "green",
+      "name": "Green",
+      "hex": "#237841",
+      "blColorId": 6,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-green",
+      "name": "Dark Green",
+      "hex": "#184632",
+      "blColorId": 80,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "olive-green",
+      "name": "Olive Green",
+      "hex": "#9B9A5A",
+      "blColorId": 155,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "sand-green",
+      "name": "Sand Green",
+      "hex": "#A0BCAC",
+      "blColorId": 48,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "medium-azure",
+      "name": "Medium Azure",
+      "hex": "#36AEBF",
+      "blColorId": 156,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "dark-turquoise",
+      "name": "Dark Turquoise",
+      "hex": "#008F9B",
+      "blColorId": 39,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "bright-light-blue",
+      "name": "Bright Light Blue",
+      "hex": "#9FC3E9",
+      "blColorId": 105,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "medium-blue",
+      "name": "Medium Blue",
+      "hex": "#5A93DB",
+      "blColorId": 42,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "dark-azure",
+      "name": "Dark Azure",
+      "hex": "#078BC9",
+      "blColorId": 153,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "blue",
+      "name": "Blue",
+      "hex": "#0055BF",
+      "blColorId": 7,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001",
+        "2456",
+        "3007"
+      ]
+    },
+    {
+      "key": "dark-blue",
+      "name": "Dark Blue",
+      "hex": "#0A3463",
+      "blColorId": 63,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "sand-blue",
+      "name": "Sand Blue",
+      "hex": "#6074A1",
+      "blColorId": 55,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "lavender",
+      "name": "Lavender",
+      "hex": "#E1D5ED",
+      "blColorId": 154,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "medium-lavender",
+      "name": "Medium Lavender",
+      "hex": "#AC78BA",
+      "blColorId": 157,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3003",
+        "3001"
+      ]
+    },
+    {
+      "key": "dark-purple",
+      "name": "Dark Purple",
+      "hex": "#3F3691",
+      "blColorId": 89,
+      "shapes": [
+        "3005",
+        "3004",
+        "3622",
+        "3010",
+        "3009",
+        "3008",
+        "3003",
+        "3002",
+        "3001"
+      ]
+    },
+    {
+      "key": "purple",
+      "name": "Purple",
+      "hex": "#81007B",
+      "blColorId": 24,
+      "shapes": [
+        "3005",
+        "3004",
+        "3010",
+        "3003"
+      ]
+    }
+  ]
+}
