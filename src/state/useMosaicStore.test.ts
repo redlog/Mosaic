@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEFAULT_COLOR_KEYS,
   REQUIRED_SHAPE,
   initialState,
   palette,
@@ -277,8 +278,17 @@ describe('grid dimensions', () => {
 });
 
 describe('palette selection', () => {
+  it('starts on the standard colors, with the rest available but off', () => {
+    const enabled = initialState().quantizeSettings.enabledColors;
+    expect(enabled).toEqual([...DEFAULT_COLOR_KEYS]);
+    expect(enabled.length).toBeLessThan(palette.colors.length);
+    for (const key of enabled) {
+      expect(palette.byKey.get(key)!.finish ?? 'solid').toBe('solid');
+    }
+  });
+
   it('toggles a color off and back on', () => {
-    const key = palette.colors[3]!.key;
+    const key = DEFAULT_COLOR_KEYS[3]!;
     const off = reducer(initialState(), { type: 'toggleColor', key });
     expect(off.quantizeSettings.enabledColors).not.toContain(key);
     expect(
@@ -287,7 +297,7 @@ describe('palette selection', () => {
   });
 
   it('keeps palette order when re-enabling', () => {
-    const key = palette.colors[3]!.key;
+    const key = DEFAULT_COLOR_KEYS[3]!;
     const round = reducer(reducer(initialState(), { type: 'toggleColor', key }), {
       type: 'toggleColor',
       key,
@@ -299,7 +309,12 @@ describe('palette selection', () => {
 
   /** Quantizing against nothing has no defined answer, so this is blocked. */
   it('refuses to empty the palette', () => {
-    let state = initialState();
+    // Switch everything on first: a new project starts with a subset, so
+    // toggling each key once would turn the rest on rather than clearing it.
+    let state = reducer(initialState(), {
+      type: 'setColors',
+      keys: palette.colors.map((c) => c.key),
+    });
     for (const color of palette.colors) {
       state = reducer(state, { type: 'toggleColor', key: color.key });
     }

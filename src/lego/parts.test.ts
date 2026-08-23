@@ -107,17 +107,39 @@ describe('wall inventory', () => {
 });
 
 describe('flat inventory', () => {
-  it('includes both 1xN and 2xN commons and omits the long bricks', () => {
-    expect(DEFAULT_FLAT_INVENTORY).toContain('3001');
-    expect(DEFAULT_FLAT_INVENTORY).toContain('3008');
-    expect(DEFAULT_FLAT_INVENTORY).not.toContain('2465');
-    expect(DEFAULT_FLAT_INVENTORY).not.toContain('3006');
+  it('is the whole catalog', () => {
+    expect(DEFAULT_FLAT_INVENTORY).toEqual(BRICK_SHAPES.map((s) => s.designId));
   });
 
-  it('is exactly the common shapes', () => {
-    expect(DEFAULT_FLAT_INVENTORY).toEqual(
-      BRICK_SHAPES.filter((s) => s.common).map((s) => s.designId)
-    );
+  it('carries both 1xN and 2xN', () => {
+    expect(DEFAULT_FLAT_INVENTORY).toContain('3008');
+    expect(DEFAULT_FLAT_INVENTORY).toContain('3001');
+  });
+});
+
+describe('catalog', () => {
+  // The palette's per-shape availability is generated against exactly these
+  // eleven; a shape added here without rebuilding the palette would be legal
+  // in no color at all under strict availability.
+  it('is the 1xN and 2xN bricks up to eight studs', () => {
+    expect(BRICK_SHAPES.map((s) => s.designId)).toEqual([
+      '3005',
+      '3004',
+      '3622',
+      '3010',
+      '3009',
+      '3008',
+      '3003',
+      '3002',
+      '3001',
+      '2456',
+      '3007',
+    ]);
+    for (const shape of BRICK_SHAPES) {
+      expect(shape.h === 1 || shape.h === 2).toBe(true);
+      expect(shape.w).toBeLessThanOrEqual(8);
+      expect(shape.name).toBe(`Brick ${shape.h} x ${shape.w}`);
+    }
   });
 });
 

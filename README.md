@@ -142,6 +142,9 @@ npm run check      # typecheck + lint + format check + tests
 | `lint` / `lint:fix`   | ESLint                                               |
 | `format`              | Prettier, write in place                             |
 | `check`               | everything above, for CI or a pre-push gate          |
+| `palette:build`       | regenerate the palette from `data/rebrickable/`      |
+| `palette:import`      | import a palette from some other color sheet         |
+| `palette:elements`    | merge an element-ID table into an existing palette   |
 
 Requires Node 20+ (developed on 22).
 
@@ -187,50 +190,61 @@ is 300321 — but modern parts get seven-digit sequential IDs that follow no pat
 that convention is a coincidence to recognise, never a rule to apply. It is a lookup
 table.
 
-**So the shipped palette contains no element IDs at all**, and none were invented. The
-export machinery is complete and tested; the data slot is empty. Until you load a real
-table the button is disabled, the panel says so, and the file it would write is a bare
-header. Lots with no known element ID are dropped from the file and named in a warning
-rather than guessed at — the same posture as the BrickLink color IDs.
-
-To load a real table (Rebrickable's `elements.csv`, a BrickLink export, a hand-kept
-sheet):
-
-```bash
-npm run palette:elements -- elements.csv
-```
-
-Columns are matched loosely and case-insensitively: `element_id`, `part_num` (or
-`design_id`), and `color` — resolved against the palette key, the color name, or the
-BrickLink color ID, in that order. Rows naming a design or color the palette does not
-carry are reported and skipped, and nothing is written if the merged result would fail
-validation. The panel then reports coverage as _n of 334 brick-and-color pairs_.
+**So no element ID in the palette was derived — every one is read out of the catalog.**
+The shipped palette carries an element ID for all 715 (color, brick) pairs it lists,
+because availability and elements come from the same source: a color is listed as
+available in a shape precisely when an element exists for that pair. The two cannot
+disagree. A hand-maintained palette may still omit them, and lots with no known element
+ID are dropped from the file and named in a warning rather than guessed at — the same
+posture as the BrickLink color IDs.
 
 Quantities above 999 are split across repeated rows rather than clamped, since Pick a
 Brick caps a single order line and silently dropping bricks from an order that looked
 complete would be worse than a longer file.
 
-## A note on the color data
+## The color data
 
-**The shipped palette is unverified.** `src/lego/palette.data.json` holds 42 curated
-colors compiled from reference knowledge, without access to a live catalog. Hex values
-are reasonable, BrickLink color IDs are plausible but unconfirmed, and the per-shape
-availability lists are a coarse four-tier estimate rather than real catalog data.
-
-The code is built around that uncertainty rather than hiding it: the file carries a
-`provenance.verified: false` flag that `loadPalette` surfaces as a warning, colors with
-no BrickLink ID are omitted from the Wanted List export instead of being guessed, and
-the tests validate structure only — never specific hex values — so correcting the data
-never looks like a regression.
-
-To replace it with real data:
+`src/lego/palette.data.json` is generated, not written. It is built from the catalog
+extract checked in under [`data/rebrickable/`](data/rebrickable/README.md):
 
 ```bash
-npm run palette:build -- colors.csv --verified
+npm run palette:build          # rewrite the palette from data/rebrickable/
+npm run palette:build -- --check   # fail if the checked-in file is stale
 ```
 
-The input may be CSV or JSON, local or a URL. Required columns are `name` and one of
-`hex` / `rgb` (accepting `#RRGGBB`, `RRGGBB`, or `r,g,b`). Optional: `key`, `bl_id`,
-`shapes` (space-separated design IDs), and `tier` (`full` / `broad` / `common` /
-`limited`, expanded into per-shape availability). The script validates before writing
-and refuses to emit a file with structural errors.
+The join is the whole idea. `elements.csv` lists every element LEGO has issued — an
+element being one specific _(brick, color)_ pair — so filtering it to the eleven brick
+shapes in `src/lego/parts.ts` answers three questions at once, from one source:
+
+- **which colors exist**, for these bricks: 94 of the catalog's 275
+- **which shapes each color exists in**, per color rather than as a blanket flag: 715
+  (color, brick) pairs out of a possible 1,034
+- **the element ID for each of those pairs**, which is what Pick a Brick orders by
+
+Because availability is derived from the elements, a color can never claim a shape that
+has no element behind it, and the parts list cannot contain a line you are unable to
+buy. That property is asserted in the test suite, along with a check that the checked-in
+JSON still matches a fresh build.
+
+Each color also carries its `finish` (`solid`, `transparent`, `metallic`, `glitter`,
+`glow`) and the first and last year it appears in the catalog. Those drive which colors
+a new project starts with: **the 46 solid colors still in production**. The other 48 —
+retired colors, transparent, chrome, pearl, glitter — stay one click away under
+**All**, but they are off by default, because a chrome brick shows the room rather than
+its own color and matching one to a photograph by color distance does not mean much.
+Trans-Red and Red are both `#C91A09`, so a red pixel choosing between them would be
+choosing arbitrarily.
+
+**The one thing still unverified is the BrickLink color IDs.** No LEGO or Rebrickable
+export carries one — Rebrickable's own color numbering is unrelated and does not convert
+— so they come from `data/bricklink-color-ids.csv`, a hand-maintained name-to-ID table
+covering 42 colors. The remaining 52 carry `null`, are excluded from the Wanted List XML
+rather than guessed, and are named by the build. The palette records this separately
+from the rest (`provenance.bricklinkVerified: false`) so the Pick a Brick path, which is
+fully derived from the catalog, is not tarred with the same warning.
+
+To import a palette from somewhere else entirely — a BrickLink export, a hand-kept sheet
+— there is `npm run palette:import -- colors.csv`. It takes CSV or JSON, local or a URL,
+requires `name` and one of `hex` / `rgb`, and accepts `key`, `bl_id`, `shapes`, and
+`tier`. Without a `shapes` column it falls back to a coarse four-tier availability
+estimate, which is exactly the guesswork the Rebrickable path exists to avoid.

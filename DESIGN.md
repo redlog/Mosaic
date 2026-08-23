@@ -283,9 +283,25 @@ export interface BomLine {
 
 ### 5.1 Palette contents
 
-A curated set of roughly 30–40 currently-produced solid colors — the balance point
-between image fidelity and being able to actually buy the parts. Retired and rare
-colors are excluded because a parts list you cannot fill is not a parts list.
+Every color LEGO has issued one of the eleven catalog bricks in — 94 of them, read
+straight out of `data/rebrickable/elements.csv`. Nothing is excluded from the file,
+because a color the user cannot even see is a choice quietly made on their behalf.
+
+What _is_ curated is the set a new project starts with: **the solid colors still in
+production**, 46 of the 94. The other 48 are one click away under **All** and off by
+default, for two different reasons:
+
+- **Retired colors** — real parts, buyable secondhand, not orderable new. A parts list
+  you cannot fill is not a parts list.
+- **Non-solid finishes** — transparent, chrome, pearl, glitter. These are not colors so
+  much as surface treatments: what you see is the room reflected in the brick, or
+  whatever sits behind it. Matching one to a photographed pixel by Lab distance is
+  meaningless however close the nominal value sits, and several of them collide exactly
+  with a solid color's value — Trans-Red and Red are both `#C91A09` — so the match
+  between them would be an arbitrary tie-break.
+
+Each entry therefore carries `finish` and the `[first, last]` years it appears in the
+catalog, and the default set is computed from those rather than hand-listed.
 
 ### 5.2 Availability is per-shape, not per-color
 
@@ -301,9 +317,17 @@ every placement.
   "name": "Dark Turquoise",
   "hex": "#008F9B",
   "blColorId": 39,
-  "shapes": ["3005", "3004", "3622", "3010", "3003", "3001"]
+  "trans": false,
+  "finish": "solid",
+  "years": [1998, 2026],
+  "shapes": ["3005", "3004", "3622", "3010", "3009", "3003", "3002", "3001", "3007"],
+  "elements": { "3005": "6425907", "3004": "6425904", "...": "..." }
 }
 ```
+
+`shapes` and `elements` always agree, because `shapes` is derived from `elements`: a
+color is listed as available in a brick exactly when an element exists for that pair.
+Across the palette that is 715 pairs out of a possible 94 × 11 = 1,034.
 
 With **strict availability** on (the default), a cell of Dark Turquoise can only be
 covered by shapes in that list. The result has a slightly higher piece count and a
@@ -312,17 +336,37 @@ inventory and the UI flags lines that may be hard to source.
 
 ### 5.3 Sourcing the data
 
-Build-time script `scripts/build-palette.ts` fetches from a public dataset
-(Rebrickable's `colors.csv` plus part/color availability, or the BrickLink color guide)
-and emits `src/lego/palette.data.json`. If the fetch is unavailable the script falls
-back to a checked-in table.
+`npm run palette:build` joins three Rebrickable catalog files, checked in under
+`data/rebrickable/` so the palette is reproducible without network access:
 
-> **Accuracy caveat:** the fallback hex values and BrickLink color IDs are drawn from
-> reference tables and are _not independently verified against current production_.
-> `palette.data.json` is deliberately a plain, hand-editable file. Any value in it can
-> be corrected without touching code, and the test suite validates structure (every
-> color has a numeric `blColorId`, a valid hex, and a non-empty `shapes` array) rather
-> than asserting specific values.
+| File           | Supplies                                                    |
+| -------------- | ----------------------------------------------------------- |
+| `colors.csv`   | name, RGB, transparency, first and last year                |
+| `parts.csv`    | the design IDs and names, cross-checked against `parts.ts`  |
+| `elements.csv` | which (brick, color) pairs exist, and each one's element ID |
+
+The join runs in `scripts/rebrickable.ts`, which is pure and unit-tested; the CLI shell
+does the file I/O. Two details worth naming:
+
+- **Reissues.** A pair accumulates an element ID every time LEGO reissues it — Brick
+  2 x 4 in White is both `300101` and `6552094`. All of them order the same brick, but
+  only the current one is listed on Pick a Brick, and IDs ascend over time, so the
+  largest wins. 603 superseded IDs are dropped this way.
+- **Ordering.** Palette order is also parts-list order, so it is derived from Lab rather
+  than hand-sorted: neutrals lightest to darkest, then the chromatic colors around the
+  hue circle from red, then metallics, then everything transparent. A near-neutral is
+  sorted by lightness rather than by a hue angle that is numerically real and
+  perceptually meaningless.
+
+> **The one value not derived is the BrickLink color ID.** No LEGO or Rebrickable export
+> carries one, and Rebrickable's own color numbering is unrelated — it matches the LDraw
+> code for the classic range, not BrickLink. They come from
+> `data/bricklink-color-ids.csv`, hand-maintained and covering 42 colors; the other 52
+> carry `null` and are excluded from the Wanted List XML rather than guessed. Provenance
+> tracks this separately as `bricklinkVerified: false`, so the Pick a Brick export —
+> entirely catalog-derived — is not saddled with a warning that does not apply to it.
+> The test suite validates structure, never specific values, and additionally checks
+> that the checked-in JSON still matches a fresh build.
 
 ### 5.4 Color math
 
@@ -507,7 +551,10 @@ Default inventory:
 | 3009 | 1 × 6 |     | 3007 | 2 × 8 |
 | 3008 | 1 × 8 |     |      |       |
 
-Optional long bricks, off by default: 6111 (1×10), 6112 (1×12), 2465 (1×16), 3006 (2×10).
+Nothing longer than eight studs. 6111 (1×10), 6112 (1×12), 2465 (1×16) and 3006 (2×10)
+are real parts, and each exists in around twenty current colors, but eleven shapes is
+the set every palette color is checked against in full — adding one means rebuilding the
+palette, not just editing a list.
 They are pricier per stud and thin in color coverage.
 
 ```
@@ -757,11 +804,12 @@ Below 900px the layout collapses to a single column with a tab bar:
 - Bulk actions: all, none, _keep only colors used in the current result_.
 - _Max distinct colors_ (default off).
 - _Strict availability_ toggle, on by default.
+- _Standard_ / _All_ buttons: back to the default color set, or open up the whole
+  catalog including retired and non-solid finishes.
 
 **Algorithm**
 
-- Brick inventory checkboxes, grouped 1×N and 2×N, with the long bricks in a
-  collapsed "uncommon" group.
+- Brick inventory checkboxes, grouped 1×N and 2×N.
 - Collapsed advanced section: the three objective weights, restart count, stagger
   lookback depth, and the seed with a _randomize_ button.
 - _Rebuild automatically_ toggle at the top, with a _Rebuild_ button that appears when
@@ -1107,6 +1155,7 @@ error node.
 | Transparent or grayscale PNG                        | Composited over the configured background                     |
 | All palette colors disabled                         | Build blocked with an explanatory message                     |
 | Color enabled but no legal shapes under strict mode | Auto-disabled, reported in UI                                 |
+| Color that exists in larger bricks but not as a 1×1 | Auto-disabled: nothing could cover a stray cell of it         |
 | Color with no `blColorId`                           | Excluded from XML export, reported with quantities            |
 | Grid above 256 in either dimension                  | Warning; hard cap at 400                                      |
 | Crop dragged outside image bounds                   | Clamped to the source rectangle                               |
@@ -1117,19 +1166,20 @@ error node.
 
 ## 15. Defaults
 
-| Setting                    | Default                            | Reasoning                                                     |
-| -------------------------- | ---------------------------------- | ------------------------------------------------------------- |
-| Orientation                | `pips-out`                         | square cells, most intuitive first result                     |
-| Dimensions                 | 48 × 48                            | one standard baseplate, ~15″                                  |
-| Max brick length           | 8 studs                            | longer bricks cost more per stud and have thin color coverage |
-| 2×N bricks                 | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change   |
-| Dithering                  | off                                | it directly fights the large-brick goal                       |
-| Strict availability        | on                                 | a parts list you can actually fill                            |
-| `W_pieces` / `W_ones`      | 1.0 / 0.5                          |                                                               |
-| `W_seam`                   | 0.25 flat, **0.5 in a wall**       | structural rather than cosmetic in a wall; see §7             |
-| Restarts (pips-out)        | 200, 1.5 s budget                  |                                                               |
-| Stagger lookback (pips-up) | `[1.0, 0.4]`                       | two courses back, decaying                                    |
-| Render                     | build view, 24 px/stud, 1×         |                                                               |
+| Setting                    | Default                            | Reasoning                                                           |
+| -------------------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| Orientation                | `pips-out`                         | square cells, most intuitive first result                           |
+| Dimensions                 | 48 × 48                            | one standard baseplate, ~15″                                        |
+| Max brick length           | 8 studs                            | the whole catalog; every palette color is checked against all of it |
+| 2×N bricks                 | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change         |
+| Dithering                  | off                                | it directly fights the large-brick goal                             |
+| Strict availability        | on                                 | a parts list you can actually fill                                  |
+| Colors enabled             | the 46 solid, in-production ones   | the other 48 are available but are retired or non-solid; §5.1       |
+| `W_pieces` / `W_ones`      | 1.0 / 0.5                          |                                                                     |
+| `W_seam`                   | 0.25 flat, **0.5 in a wall**       | structural rather than cosmetic in a wall; see §7                   |
+| Restarts (pips-out)        | 200, 1.5 s budget                  |                                                                     |
+| Stagger lookback (pips-up) | `[1.0, 0.4]`                       | two courses back, decaying                                          |
+| Render                     | build view, 24 px/stud, 1×         |                                                                     |
 
 ---
 
@@ -1155,7 +1205,7 @@ Ordered roughly by value per unit of effort.
 None blocking. The four settled during design review, recorded here so they are not
 relitigated:
 
-1. Max brick length is 8; 1×10 through 1×16 available but off by default.
+1. Max brick length is 8.
 2. 2×N bricks are pips-out only.
 3. Dithering defaults to off.
 4. Strict availability filtering defaults to on.

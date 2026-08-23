@@ -1,9 +1,22 @@
+import { isCurrent } from '../lego/palette';
 import {
+  DEFAULT_COLOR_KEYS,
   palette,
   type Action,
   type DerivedMosaic,
   type MosaicState,
 } from '../state/useMosaicStore';
+
+/**
+ * Why a color is off by default, for the badge next to its name. Colors with
+ * neither note are the ordinary case and get no badge.
+ */
+function aside(color: (typeof palette.colors)[number]): string | null {
+  const finish = color.finish ?? 'solid';
+  if (finish !== 'solid') return finish === 'transparent' ? 'trans' : finish;
+  if (!isCurrent(color)) return `retired ${color.years?.[1] ?? ''}`.trim();
+  return null;
+}
 
 export interface PalettePanelProps {
   state: MosaicState;
@@ -36,13 +49,29 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
         <p className="note">Colors are fixed for a project opened without its photo.</p>
       )}
 
+      <p className="muted small">
+        Every color LEGO makes these bricks in, {palette.colors.length} of them. Retired
+        colors and non-solid finishes are listed but start off: a chrome or transparent
+        brick shows the room rather than its own color, so matching one to a photo by
+        color distance does not mean much.
+      </p>
+
       <div className="row">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => dispatch({ type: 'setColors', keys: [...DEFAULT_COLOR_KEYS] })}
+          title="Currently-produced solid colors — the set a new project starts with"
+        >
+          Standard
+        </button>
         <button
           type="button"
           disabled={disabled}
           onClick={() =>
             dispatch({ type: 'setColors', keys: palette.colors.map((c) => c.key) })
           }
+          title="Everything the catalog has, including retired, transparent and metallic"
         >
           All
         </button>
@@ -66,7 +95,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
           type="range"
           disabled={disabled}
           min={0}
-          max={Math.min(40, palette.colors.length)}
+          max={Math.min(64, palette.colors.length)}
           value={state.quantizeSettings.maxColors ?? 0}
           onChange={(e) => {
             const value = Number(e.target.value);
@@ -94,6 +123,7 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
         {palette.colors.map((color) => {
           const count = usage.get(color.key) ?? 0;
           const on = enabled.has(color.key);
+          const note = aside(color);
           return (
             <li key={color.key}>
               <label className={`swatch${on ? '' : ' swatch--off'}`}>
@@ -109,7 +139,10 @@ export default function PalettePanel({ state, dispatch, derived }: PalettePanelP
                   style={{ background: color.hex }}
                   aria-hidden="true"
                 />
-                <span className="swatch__name">{color.name}</span>
+                <span className="swatch__name">
+                  {color.name}
+                  {note && <span className="muted small"> {note}</span>}
+                </span>
                 <span className="swatch__count muted small">
                   {count > 0 ? count.toLocaleString() : ''}
                 </span>

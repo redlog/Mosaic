@@ -167,9 +167,6 @@ input[type='range'] {
   margin: 0.3rem 0;
   cursor: pointer;
 }
-.check--dim {
-  color: var(--muted);
-}
 .check input {
   accent-color: var(--accent);
 }

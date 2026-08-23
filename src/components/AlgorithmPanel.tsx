@@ -58,7 +58,7 @@ export default function AlgorithmPanel({
           const required = shape.designId === REQUIRED_SHAPE;
           return (
             <li key={shape.designId}>
-              <label className={`check${shape.common ? '' : ' check--dim'}`}>
+              <label className="check">
                 <input
                   type="checkbox"
                   checked={inventory.has(shape.designId)}
@@ -69,7 +69,6 @@ export default function AlgorithmPanel({
                 />
                 {shape.name.replace('Brick ', '')}
                 {required && <span className="muted small"> required</span>}
-                {!shape.common && <span className="muted small"> uncommon</span>}
               </label>
             </li>
           );

@@ -2,12 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { centerCropForAspect, cropAspectFor, frameImage } from './frame';
 import { applyAdjustments } from './adjust';
 import { quantize } from './quantize';
-import { loadPalette } from './palette';
+import { defaultColorKeys, enabledColors, loadPalette } from './palette';
 import { finishedSize } from './constants';
 import type { Orientation, SourceImage } from './types';
 
 const palette = loadPalette();
-const colors = [...palette.colors];
+/**
+ * The colors a new project actually offers — solid, still in production. The
+ * full palette also carries retired and transparent colors, and matching
+ * against those is not what the app does: Trans-Red and Red are both #C91A09,
+ * so a test asserting which one a red pixel lands on would be asserting a
+ * tie-break, not behavior.
+ */
+const colors = enabledColors(palette, defaultColorKeys([...palette.colors]));
 
 /**
  * A synthetic "photograph": a red disc on a blue field with a yellow corner

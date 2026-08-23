@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
   colorsMissingBricklinkId,
+  defaultColorKeys,
+  elementIdFor,
   enabledColors,
+  isCurrent,
   legalShapes,
   loadPalette,
   unusableColors,
   validatePaletteFile,
 } from './palette';
+import { BRICK_SHAPES } from './parts';
 import { hasShape } from './parts';
 import { isValidHex } from './color';
 import type { PaletteFile } from './types';
@@ -25,10 +29,10 @@ describe('built-in palette', () => {
   const palette = loadPalette();
 
   /**
-   * Structural checks only. The hex values and BrickLink IDs in
-   * palette.data.json are hand-maintained and explicitly unverified, so
-   * asserting specific values here would freeze today's guesses into the
-   * suite and make correcting the data look like a regression.
+   * Structural checks only. Every value in palette.data.json is generated
+   * from data/rebrickable/ by `npm run palette:build`, so asserting specific
+   * hex values or element IDs here would just restate the input and make a
+   * catalog refresh look like a regression.
    */
   it('is structurally valid', () => {
     expect(validatePaletteFile(paletteData).errors).toEqual([]);
@@ -62,15 +66,55 @@ describe('built-in palette', () => {
     expect(white.lab[0]).toBeGreaterThan(black.lab[0]);
   });
 
-  it('warns that its data is unverified', () => {
-    expect(palette.provenance.verified).toBe(false);
-    expect(palette.warnings.join(' ')).toMatch(/unverified/i);
+  it('is built from a real catalog but keeps BrickLink IDs unverified', () => {
+    expect(palette.provenance.verified).toBe(true);
+    expect(palette.provenance.bricklinkVerified).toBe(false);
+    expect(palette.warnings.join(' ')).toMatch(/BrickLink color IDs .*unverified/i);
   });
 
-  it('is usable by the default wall inventory', () => {
-    // Every color must be buildable as at least a 1x1, or strict availability
-    // would silently drop it.
-    for (const c of palette.colors) expect(c.shapes).toContain('3005');
+  it('carries an element ID for every pair it claims to be available in', () => {
+    // The whole point of the Rebrickable build: availability is derived from
+    // the elements that exist, so the two can never disagree.
+    for (const c of palette.colors) {
+      for (const designId of c.shapes) {
+        expect(elementIdFor(c, designId)).toMatch(/^\d+$/);
+      }
+      expect(Object.keys(c.elements ?? {}).sort()).toEqual([...c.shapes].sort());
+    }
+  });
+
+  it('records a finish and a production span for every color', () => {
+    for (const c of palette.colors) {
+      expect(c.finish).toBeDefined();
+      expect(c.years?.length).toBe(2);
+      expect(c.trans).toBe(c.finish === 'transparent' || /^Glitter Trans/.test(c.name));
+    }
+  });
+
+  it('defaults to the solid colors still in production', () => {
+    const defaults = defaultColorKeys([...palette.colors]);
+    expect(defaults.length).toBeGreaterThanOrEqual(30);
+    expect(defaults.length).toBeLessThan(palette.colors.length);
+    for (const key of defaults) {
+      const c = palette.byKey.get(key)!;
+      expect(c.finish).toBe('solid');
+      expect(isCurrent(c)).toBe(true);
+    }
+    expect(defaults).toContain('white');
+    expect(defaults).toContain('black');
+    expect(defaults).not.toContain('trans-clear');
+  });
+
+  it('auto-disables colors with no 1x1 rather than letting them break a tiling', () => {
+    // Real availability data has colors that exist only in larger bricks —
+    // Flat Silver has no 1x1 — and a single such cell would be uncoverable.
+    const inventory = BRICK_SHAPES.map((s) => s.designId);
+    const noOnes = palette.colors.filter((c) => !c.shapes.includes('3005'));
+    expect(noOnes.length).toBeGreaterThan(0);
+    const unusable = new Set(
+      unusableColors([...palette.colors], inventory).map((c) => c.key)
+    );
+    for (const c of noOnes) expect(unusable.has(c.key)).toBe(true);
   });
 });
 
