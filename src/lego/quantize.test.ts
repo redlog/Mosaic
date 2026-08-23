@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { quantize, selectColors } from './quantize';
-import { loadPalette } from './palette';
+import { defaultColorKeys, enabledColors, loadPalette } from './palette';
 import { rgb255ToLinear } from './color';
 import type { CellBuffer, LegoColor } from './types';
 
 const palette = loadPalette();
-const all = [...palette.colors];
+/**
+ * The colors a new project actually offers — solid, still in production. The
+ * full palette also carries retired and transparent colors, and matching
+ * against those is not what the app does: Trans-Red and Red are both #C91A09,
+ * so a test asserting which one a red pixel lands on would be asserting a
+ * tie-break, not behavior.
+ */
+const all = enabledColors(palette, defaultColorKeys([...palette.colors]));
 
 const pick = (...keys: string[]): LegoColor[] => keys.map((k) => palette.byKey.get(k)!);
 

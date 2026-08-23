@@ -21,13 +21,18 @@ export interface BrickShape {
   w: number;
   /** Studs along the short axis. Always 1 for shapes usable in a wall. */
   h: number;
-  /**
-   * Whether this shape is stocked widely enough to be on by default.
-   * The long bricks (1x10 and up) are real but pricier per stud and thin
-   * in color coverage, so they ship disabled.
-   */
-  common: boolean;
 }
+
+/**
+ * How a color is finished, which is not the same question as what color it is.
+ *
+ * A chrome or pearl brick's appearance is mostly the room reflected in it, and
+ * a transparent one's is whatever sits behind it, so matching either to a
+ * photographed pixel by Lab distance is meaningless however close the nominal
+ * RGB value sits. They are real parts and the palette carries them; what this
+ * field drives is which colors are on by default.
+ */
+export type ColorFinish = 'solid' | 'transparent' | 'metallic' | 'glitter' | 'glow';
 
 /** A palette entry exactly as it appears in `palette.data.json`. */
 export interface PaletteColorData {
@@ -42,6 +47,16 @@ export interface PaletteColorData {
    * than guessed, because a wrong ID produces a silently wrong order.
    */
   blColorId: number | null;
+  /** Whether light passes through it. Absent means opaque. */
+  trans?: boolean;
+  /** Surface treatment. Absent means `solid`. */
+  finish?: ColorFinish;
+  /**
+   * First and last year the color appears in the catalog. A `last` well in the
+   * past means retired: still buyable secondhand, not orderable new, so such
+   * colors ship switched off. Absent when the source data does not say.
+   */
+  years?: [number, number];
   /**
    * Design IDs this color is actually produced in. This is per-shape, not a
    * single availability flag, because plenty of colors exist as a 1x2 but
@@ -79,6 +94,13 @@ export interface PaletteProvenance {
    * against current production. The UI surfaces this.
    */
   verified: boolean;
+  /**
+   * Whether the BrickLink color IDs specifically have been checked. Tracked
+   * apart from `verified` because they come from a different source than the
+   * rest of the palette: nothing in a LEGO or Rebrickable export carries a
+   * BrickLink ID, so they are hand-maintained even when everything else is not.
+   */
+  bricklinkVerified?: boolean;
   note: string;
 }
 

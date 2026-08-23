@@ -13,7 +13,7 @@ import { tile } from './tile';
 import { buildBom } from './bom';
 import { toBricklinkXml } from './export-bricklink';
 import { parseProject, validateProject, PROJECT_VERSION } from './project';
-import { enabledColors, unusableColors } from './palette';
+import { defaultColorKeys, enabledColors, unusableColors } from './palette';
 import { MAX_GRID_DIMENSION, WARN_GRID_DIMENSION } from './constants';
 import { DEFAULT_FLAT_INVENTORY } from './parts';
 import { DEFAULT_WEIGHTS } from './score';
@@ -22,7 +22,7 @@ import type { CellBuffer, LegoColor, SourceImage } from './types';
 
 const settings = (overrides: Partial<BuildSettings> = {}): BuildSettings => ({
   orientation: 'pips-out',
-  colorKeys: palette.colors.map((c) => c.key),
+  colorKeys: defaultColorKeys([...palette.colors]),
   dither: 'none',
   ditherStrength: 0,
   maxColors: null,
@@ -101,12 +101,13 @@ describe('§14 — palette exhaustion', () => {
    */
   it('can identify colors with nothing legal in the inventory', () => {
     const all = enabledColors(palette);
-    // 2x6 and 2x8 only: any color not produced in those is unusable.
+    // 2x6 and 2x8 only: a color is stranded if it is produced in neither, and
+    // also if it has no 1x1 to fall back on for the cells those cannot cover.
     const stranded = unusableColors(all, ['2456', '3007']);
     expect(stranded.length).toBeGreaterThan(0);
     for (const color of stranded) {
-      expect(color.shapes).not.toContain('2456');
-      expect(color.shapes).not.toContain('3007');
+      const noBigBrick = !color.shapes.includes('2456') && !color.shapes.includes('3007');
+      expect(noBigBrick || !color.shapes.includes('3005')).toBe(true);
     }
   });
 

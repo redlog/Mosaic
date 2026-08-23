@@ -13,6 +13,14 @@ const palette = loadPalette();
 const red = palette.byKey.get('red')!;
 const blue = palette.byKey.get('blue')!;
 
+/**
+ * A color from before the palette carried element IDs — a hand-maintained
+ * file may still omit them, and the export must treat that as unknown rather
+ * than as an error.
+ */
+const noElements: LegoColor = { ...red };
+delete noElements.elements;
+
 /** Colors carrying the element IDs from the user's own example rows. */
 const withElements: LegoColor[] = [
   { ...red, elements: { '3003': '300321', '3001': '300121' } },
@@ -183,7 +191,7 @@ describe('missing element IDs', () => {
   });
 
   it('treats a color with no elements block at all as unknown, not an error', () => {
-    const bom = buildBom(tiling(brick('3001', 0, 2)), [red]);
+    const bom = buildBom(tiling(brick('3001', 0, 2)), [noElements]);
     const result = toPickABrickCsv(bom);
     expect(result.omitted).toHaveLength(1);
     expect(result.csv.trim()).toBe('elementId,quantity');

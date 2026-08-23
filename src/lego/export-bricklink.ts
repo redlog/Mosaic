@@ -63,7 +63,8 @@ export function toBricklinkXml(bom: Bom): BricklinkExport {
     warnings.push(
       `Omitted ${omitted.length} ${omitted.length === 1 ? 'line' : 'lines'} ` +
         `(${bricks} ${bricks === 1 ? 'brick' : 'bricks'}) with no BrickLink color ID: ` +
-        `${colors.join(', ')}. Add the IDs to palette.data.json to include them.`
+        `${colors.join(', ')}. Add them to data/bricklink-color-ids.csv and rerun ` +
+        '`npm run palette:build` to include them — palette.data.json is generated.'
     );
   }
   if (included.length === 0) {

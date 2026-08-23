@@ -19,8 +19,8 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 **Current status:** all nine phases complete, plus Phase 11 (the Pick a Brick export),
 Phase 12 (free-form framing) and Phase 13 (rebuild coalescing) added afterwards. Two items are prepared rather than
 done and are marked `[~]` in Phase 9: cross-browser verification on Firefox/Safari, and
-the Pages deployment itself. Phase 11 needs real element-ID data loaded, which is data
-entry rather than code.
+the Pages deployment itself. The palette is now generated from a real catalog extract
+(§1.4); the only hand-maintained values left are the BrickLink color IDs.
 
 ---
 
@@ -90,7 +90,8 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 ### 1.3 Parts catalog — `src/lego/parts.ts` ✅
 
 - [x] Shape table with design IDs (§7.1): 3005, 3004, 3622, 3010, 3009, 3008,
-      3003, 3002, 3001, 2456, 3007, plus 6111, 6112, 2465, 3006 as uncommon
+      3003, 3002, 3001, 2456, 3007 — the 1×N and 2×N bricks up to eight studs,
+      names verified against `data/rebrickable/parts.csv` by the palette build
 - [x] `area(shape)`, `orientationsOf(shape)`, `WALL_SHAPES` (1×N only)
 - [x] `DEFAULT_FLAT_INVENTORY`, `DEFAULT_WALL_INVENTORY`, `defaultInventoryFor()`
 - [x] `wallLengths()` / `wallShapeOfLength()` — the run lengths the Phase 3 DP needs
@@ -98,27 +99,40 @@ Pure, dependency-free, fully tested. No UI in this phase at all.
 
 ### 1.4 Palette — `src/lego/palette.ts` + `palette.data.json` ✅
 
-- [x] `scripts/palette-source.ts` — CSV/JSON parsing and assembly (pure, tested)
-- [x] `scripts/build-palette.ts` — CLI wrapper, `npm run palette:build -- <input>`
-- [x] Fallback checked-in table: 42 curated colors
-- [x] Per-color `shapes` availability array (§5.2) — the part that makes output buildable
+- [x] `data/rebrickable/` — checked-in catalog extract (colors, the 11 parts, and the
+      1,318 elements for them), so the palette is reproducible offline
+- [x] `scripts/rebrickable.ts` — the three-file join (pure, tested);
+      `scripts/build-palette.ts` — CLI, `npm run palette:build`, plus `--check`
+- [x] `scripts/palette-source.ts` — CSV/JSON parsing, shared with the import path
+- [x] `scripts/import-palette.ts` — `npm run palette:import`, for a sheet from anywhere
+      else; keeps the coarse tier fallback the Rebrickable path does not need
+- [x] Shipped table: 94 colors, 715 (color, brick) pairs, every one with an element ID
+- [x] Per-color `shapes` availability array (§5.2) — derived from the elements that
+      exist, so it cannot claim a shape you are unable to buy
+- [x] `trans`, `finish` and `years` per color; `defaultColorKeys()` picks the 46 solid,
+      in-production ones for a new project (§5.1)
 - [x] `loadPalette(overrides)` — parses, precomputes RGB + Lab, validates, throws on
       structural errors
-- [x] `enabledColors()`, `legalShapes()`, `unusableColors()`, `colorsMissingBricklinkId()`
+- [x] `enabledColors()`, `legalShapes()`, `unusableColors()`, `isCurrent()`,
+      `colorsMissingBricklinkId()`
 - [x] Tests: structural validation only (valid hex, integer-or-null `blColorId`,
       non-empty `shapes`, every design ID exists in the catalog) — **not** assertions on
-      specific hex values, which are hand-correctable data
+      specific hex values, which are generated data — plus a check that the checked-in
+      JSON still equals a fresh build
 
-> **The palette data is unverified and needs replacing.** The environment's network
-> policy denies rebrickable.com and bricklink.com (403 on CONNECT), so no live fetch
-> was possible. The shipped table is compiled from reference knowledge: hex values are
-> reasonable, BrickLink color IDs are plausible but unconfirmed, and the per-shape
-> availability is a coarse four-tier estimate, not real catalog data.
->
-> `provenance.verified` is `false`, `loadPalette` surfaces that as a warning, and colors
-> with a null `blColorId` are excluded from XML export rather than guessed. To replace
-> it: `npm run palette:build -- colors.csv --verified`. The CSV needs `name` and `hex`
-> columns; `bl_id`, `shapes`, and `tier` are optional.
+> **Real availability data turned up a case the estimate could not express.** The old
+> four-tier guess gave every color a 1×1. The catalog does not: Flat Silver exists as a
+> 1×6, a 2×2 and a 2×4 and in nothing smaller, so under strict availability one stray
+> Flat Silver cell left a hole no brick in that color could fill, and `tile()` threw.
+> `unusableColors()` now treats a missing 1×1 as unusable alongside an empty
+> intersection, and `build.ts` applies that filter itself rather than relying on the
+> UI having done it.
+
+> **BrickLink color IDs remain the one unverified field.** Nothing in a LEGO or
+> Rebrickable export carries one and Rebrickable's numbering does not convert, so they
+> stay in `data/bricklink-color-ids.csv` — 42 colors mapped, 52 left `null` and excluded
+> from XML export rather than guessed. Tracked as `provenance.bricklinkVerified: false`,
+> separately from `verified`, so the fully-derived Pick a Brick path is not warned about.
 
 ### 1.5 Seeded RNG — `src/lego/rng.ts` ✅
 
@@ -507,20 +521,23 @@ Added after v1, on request: a CSV importable at lego.com. See DESIGN.md §11.3.
 - [x] `BomLine.elementId` resolved when the parts list is built
 - [x] `export-pickabrick.ts` — two columns, omits unknown elements, splits quantities
       over the 999-per-line cap instead of clamping them
-- [x] `scripts/merge-elements.ts` / `npm run palette:elements` to load a real table;
-      loose column matching, unknown designs and colors reported and skipped, refuses
-      to write a palette that fails validation
+- [x] `scripts/merge-elements.ts` / `npm run palette:elements` to merge a table into an
+      existing palette; loose column matching, unknown designs and colors reported and
+      skipped, refuses to write a palette that fails validation
 - [x] Export button plus a coverage note in the panel
 - [x] 14 tests; verified in Chromium at zero, partial and full element coverage
-- [ ] **Load a real element table.** The shipped palette carries none.
+- [x] **A real element table is loaded.** All 715 (color, brick) pairs carry one,
+      straight from `data/rebrickable/elements.csv` — see §1.4.
 
-> **The one thing not done here is deliberate.** The user's own two example rows decode
-> as 3003 + colour 21 and 3001 + colour 21 — the classic designID-plus-LEGO-colour
-> convention — and it would have been easy to generate all 334 IDs that way. But modern
-> parts use seven-digit sequential IDs that follow no pattern, so that convention is a
-> coincidence that holds for some old parts, not a formula. Fabricated IDs would import
-> cleanly and order the wrong bricks, and the format has no name column to catch it by
-> eye. The machinery ships complete and the data slot ships empty, with the UI saying so.
+> **Nothing was derived, in the end, because nothing had to be.** The original two
+> example rows decode as 3003 + colour 21 and 3001 + colour 21 — the classic
+> designID-plus-LEGO-colour convention — and generating every ID that way would have
+> been easy and wrong: modern parts use seven-digit sequential IDs that follow no
+> pattern, fabricated IDs import cleanly and order the wrong bricks, and the format has
+> no name column to catch it by eye. The machinery shipped complete with an empty data
+> slot until real data arrived; now the same file that supplies the element IDs also
+> defines which (color, brick) pairs exist at all, so coverage is 100% by construction
+> rather than by luck.
 
 ---
 

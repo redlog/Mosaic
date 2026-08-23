@@ -24,6 +24,13 @@ import {
 const PALETTE_VERIFIED = palette.provenance.verified;
 
 /**
+ * BrickLink IDs are tracked apart from the rest: nothing in the LEGO or
+ * Rebrickable data carries one, so they stay hand-maintained even once
+ * everything else is generated.
+ */
+const BRICKLINK_VERIFIED = palette.provenance.bricklinkVerified !== false;
+
+/**
  * How many (color, brick) pairs carry an element ID. Resolved once — the
  * palette does not change at runtime.
  */
@@ -175,8 +182,8 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
       {ELEMENTS.known === 0 ? (
         <p className="note note--warn">
           No element IDs are loaded, so the Pick a Brick export has nothing to write.
-          Element IDs are a lookup table — none were invented. Load one with{' '}
-          <code>npm run palette:elements -- elements.csv</code>.
+          Element IDs are a lookup table — none were invented. Rebuild the palette with{' '}
+          <code>npm run palette:build</code>.
         </p>
       ) : (
         ELEMENTS.known < ELEMENTS.total && (
@@ -237,11 +244,20 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
         </p>
       )}
 
-      {!PALETTE_VERIFIED && (
+      {!PALETTE_VERIFIED ? (
         <p className="note note--warn">
           The bundled color data is unverified — check part numbers and BrickLink color
           IDs before placing an order.
         </p>
+      ) : (
+        !BRICKLINK_VERIFIED && (
+          <p className="note">
+            Colors, availability and element IDs come from the LEGO catalog. BrickLink
+            color IDs do not — no export carries one — so they are hand-maintained and
+            worth a glance before you upload a Wanted List. The Pick a Brick CSV is
+            unaffected.
+          </p>
+        )
       )}
     </section>
   );

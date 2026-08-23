@@ -1,42 +1,28 @@
 /**
- * Regenerate `src/lego/palette.data.json` from an authoritative color export.
+ * Rebuild `src/lego/palette.data.json` from the checked-in Rebrickable extract.
  *
- *   npm run palette:build -- <input.csv|input.json|https://...> [options]
+ *   npm run palette:build
  *
  * Options:
- *   --out <path>       output file (default src/lego/palette.data.json)
- *   --id <id>          palette id written into the file (default builtin-v1)
- *   --source <text>    provenance source description
- *   --verified         mark the data as checked against a real catalog
- *   --default-tier <t> availability tier for rows that do not specify one
+ *   --data <dir>   catalog extract directory (default data/rebrickable)
+ *   --out <path>   output file (default src/lego/palette.data.json)
+ *   --bricklink <path>  name -> BrickLink ID table
+ *                       (default data/bricklink-color-ids.csv)
+ *   --retrieved <date>  date the extract was downloaded, for provenance
+ *   --check        report what would change without writing
  *
- * The shipped palette is a hand-curated fallback compiled without access to a
- * live catalog. This script exists so that fallback can be replaced with real
- * data — from a BrickLink or Rebrickable export, or a hand-maintained sheet —
- * without editing any code.
- *
- * Parsing lives in palette-source.ts; this file is only the CLI shell.
+ * Takes no input path because the input is in the repository: see
+ * data/rebrickable/README.md. The joining logic lives in rebrickable.ts; this
+ * file is only the CLI shell.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validatePaletteFile } from '../src/lego/palette';
-import { parseInput, type BuildOptions } from './palette-source';
-
-async function readSource(location: string): Promise<string> {
-  if (/^https?:\/\//.test(location)) {
-    const response = await fetch(location);
-    if (!response.ok) {
-      throw new Error(`Fetch failed: ${response.status} ${response.statusText}`);
-    }
-    return await response.text();
-  }
-  return readFileSync(resolve(location), 'utf8');
-}
+import { buildPalette, type RebrickableSources } from './rebrickable';
 
 const USAGE =
-  'usage: npm run palette:build -- <input.csv|input.json|url> [--out <path>]\n' +
-  '                              [--id <id>] [--source <text>] [--verified]\n' +
-  '                              [--default-tier full|broad|common|limited]';
+  'usage: npm run palette:build -- [--data data/rebrickable] [--out <path>]\n' +
+  '                               [--bricklink <path>] [--retrieved <date>] [--check]';
 
 export async function main(argv: readonly string[]): Promise<number> {
   // Under vite-node the script path is already stripped; under plain node it
@@ -44,14 +30,14 @@ export async function main(argv: readonly string[]): Promise<number> {
   const dashdash = argv.indexOf('--');
   const args = dashdash === -1 ? [...argv] : argv.slice(dashdash + 1);
 
-  const positional: string[] = [];
-  const options: BuildOptions = {};
+  let dataDir = 'data/rebrickable';
   let out = 'src/lego/palette.data.json';
+  let bricklinkPath = 'data/bricklink-color-ids.csv';
+  let retrieved: string | undefined;
+  let check = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
-    // A flag at the end of the line with no value is a typo, not a request to
-    // use the default — say so rather than silently carrying on.
     const value = (): string => {
       const v = args[++i];
       if (v === undefined || v.startsWith('--')) {
@@ -61,48 +47,91 @@ export async function main(argv: readonly string[]): Promise<number> {
     };
 
     switch (arg) {
+      case '--data':
+        dataDir = value();
+        break;
       case '--out':
         out = value();
         break;
-      case '--id':
-        options.id = value();
+      case '--bricklink':
+        bricklinkPath = value();
         break;
-      case '--source':
-        options.source = value();
+      case '--retrieved':
+        retrieved = value();
         break;
-      case '--default-tier':
-        options.defaultTier = value();
+      case '--check':
+        check = true;
         break;
-      case '--verified':
-        options.verified = true;
-        break;
+      case '--help':
+      case '-h':
+        console.log(USAGE);
+        return 0;
       default:
-        if (arg.startsWith('--')) throw new Error(`Unknown option ${arg}`);
-        positional.push(arg);
+        console.error(`Unknown argument ${arg}\n${USAGE}`);
+        return 1;
     }
   }
 
-  const input = positional[0];
-  if (!input) {
-    console.error(USAGE);
-    return 1;
+  const read = (name: string): string => readFileSync(resolve(dataDir, name), 'utf8');
+  const sources: RebrickableSources = {
+    colors: read('colors.csv'),
+    parts: read('parts.csv'),
+    elements: read('elements.csv'),
+  };
+  const blFile = resolve(bricklinkPath);
+  if (existsSync(blFile)) {
+    sources.bricklink = readFileSync(blFile, 'utf8');
+  } else {
+    console.warn(`warning: ${bricklinkPath} not found — every BrickLink ID will be null`);
   }
 
-  const file = parseInput(await readSource(input), options);
+  const { file, report } = buildPalette(
+    sources,
+    retrieved === undefined ? {} : { retrieved }
+  );
   const { errors, warnings } = validatePaletteFile(file);
 
-  for (const w of warnings) console.warn(`warning: ${w}`);
+  // Colors with no BrickLink ID are already reported in aggregate below; the
+  // per-color warnings would bury the summary under 50 identical lines.
+  for (const w of warnings.filter((w) => !w.includes('BrickLink'))) {
+    console.warn(`warning: ${w}`);
+  }
   if (errors.length > 0) {
     console.error(`Refusing to write ${out} — ${errors.length} error(s):`);
     for (const e of errors) console.error(`  ${e}`);
     return 1;
   }
 
-  writeFileSync(resolve(out), `${JSON.stringify(file, null, 2)}\n`);
-  console.log(`Wrote ${file.colors.length} colors to ${out}`);
-  if (!file.provenance.verified) {
-    console.log('Marked unverified — pass --verified once the data is checked.');
+  const text = `${JSON.stringify(file, null, 2)}\n`;
+  const outPath = resolve(out);
+  const existing = existsSync(outPath) ? readFileSync(outPath, 'utf8') : null;
+
+  console.log(
+    `${report.colors} colors, ${report.pairs} (color, brick) pairs, ` +
+      `all with element IDs (${report.supersededElements} superseded IDs dropped)`
+  );
+  console.log(
+    `Skipped ${report.skippedColors} catalog colors with no element in any of ` +
+      `the ${sources.parts.trim().split('\n').length - 1} brick shapes`
+  );
+  if (report.missingBricklinkIds.length > 0) {
+    console.log(
+      `No BrickLink ID for ${report.missingBricklinkIds.length} colors ` +
+        `(excluded from Wanted List export): ${report.missingBricklinkIds.join(', ')}`
+    );
   }
+
+  if (check) {
+    if (existing === text) {
+      console.log(`${out} is up to date.`);
+      return 0;
+    }
+    console.error(`${out} is stale — run \`npm run palette:build\`.`);
+    return 1;
+  }
+
+  writeFileSync(outPath, text);
+  console.log(existing === text ? `${out} unchanged.` : `Wrote ${out}.`);
   return 0;
 }
 

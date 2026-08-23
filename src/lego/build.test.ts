@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildFromCells, buildFromGrid, palette, type BuildSettings } from './build';
+import { defaultColorKeys, unusableColors } from './palette';
 import { validateTiling } from './score';
 import { DEFAULT_FLAT_INVENTORY, DEFAULT_WALL_INVENTORY } from './parts';
 import { rgb255ToLinear } from './color';
@@ -8,7 +9,7 @@ import type { CellBuffer, Grid } from './types';
 
 const settings = (overrides: Partial<BuildSettings> = {}): BuildSettings => ({
   orientation: 'pips-out',
-  colorKeys: palette.colors.map((c) => c.key),
+  colorKeys: defaultColorKeys([...palette.colors]),
   dither: 'none',
   ditherStrength: 0,
   maxColors: null,
@@ -67,12 +68,31 @@ describe('buildFromCells', () => {
   });
 
   it('names the colors its indices refer to', () => {
+    const enabled = defaultColorKeys([...palette.colors]);
     const result = buildFromCells(
       cells(8, 8, () => red.rgb),
-      settings()
+      settings({ colorKeys: enabled })
     );
-    expect(result.colorKeys).toHaveLength(palette.colors.length);
     expect(result.colorKeys[result.grid.colors[0]!]).toBe('red');
+    // Strict availability drops whatever the inventory cannot build, so the
+    // index list is the enabled set minus exactly those.
+    const dropped = unusableColors(
+      enabled.map((k) => palette.byKey.get(k)!),
+      [...DEFAULT_FLAT_INVENTORY]
+    );
+    expect(result.colorKeys).toHaveLength(enabled.length - dropped.length);
+    for (const c of dropped) expect(result.colorKeys).not.toContain(c.key);
+  });
+
+  it('keeps a color the inventory cannot build out of the quantizer', () => {
+    // Under strict availability this used to surface as a mid-tile failure:
+    // a color with no 1x1 leaves cells nothing can cover.
+    const noOnes = palette.colors.find((c) => !c.shapes.includes('3005'))!;
+    const result = buildFromCells(
+      cells(8, 8, () => red.rgb),
+      settings({ colorKeys: [red.key, noOnes.key] })
+    );
+    expect(result.colorKeys).toEqual([red.key]);
   });
 
   it('reports progress through both phases', () => {

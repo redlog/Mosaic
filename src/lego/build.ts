@@ -5,7 +5,7 @@
  * and so it can be tested in Node without a worker at all. The worker in
  * src/worker/ is a thin message-passing shell around this.
  */
-import { enabledColors, loadPalette } from './palette';
+import { enabledColors, loadPalette, unusableColors } from './palette';
 import { quantize, type DitherMode } from './quantize';
 import { tile } from './tile';
 import type {
@@ -51,12 +51,27 @@ export type ProgressFn = (phase: BuildPhase, fraction: number) => void;
  */
 export type AbortFn = () => boolean;
 
-function resolve(keys: readonly string[]): LegoColor[] {
-  const colors = enabledColors(palette, keys);
-  if (colors.length === 0) {
+/**
+ * The enabled colors, minus any the inventory cannot actually build.
+ *
+ * Under strict availability a color with no legal brick — or with legal bricks
+ * but no 1x1, which real catalog data does produce — would fail partway
+ * through tiling with a cell nothing can cover. Dropping such colors here
+ * rather than in the UI means every caller gets the guarantee, worker and
+ * headless test alike. If that would empty the palette the enabled set is
+ * passed through unchanged, so the failure is the one the user can act on
+ * ("nothing you picked is buildable") instead of "enable at least one color".
+ */
+function resolve(settings: Pick<BuildSettings, 'colorKeys' | 'strict' | 'inventory'>) {
+  const enabled = enabledColors(palette, settings.colorKeys);
+  if (enabled.length === 0) {
     throw new Error('Enable at least one color to build a mosaic');
   }
-  return colors;
+  if (!settings.strict) return enabled;
+
+  const unusable = new Set(unusableColors(enabled, settings.inventory).map((c) => c.key));
+  const usable = enabled.filter((c) => !unusable.has(c.key));
+  return usable.length > 0 ? usable : enabled;
 }
 
 /** Quantize a cell buffer, then tile the result. */
@@ -67,7 +82,7 @@ export function buildFromCells(
   shouldAbort?: AbortFn
 ): BuildResult {
   onProgress?.('quantize', 0);
-  const quantized = quantize(cells, resolve(settings.colorKeys), {
+  const quantized = quantize(cells, resolve(settings), {
     dither: settings.dither,
     ditherStrength: settings.ditherStrength,
     maxColors: settings.maxColors,

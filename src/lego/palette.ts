@@ -1,6 +1,7 @@
 import { hexToRgb, isValidHex, rgbToLab } from './color';
 import { hasShape } from './parts';
 import type {
+  ColorFinish,
   LegoColor,
   PaletteColorData,
   PaletteFile,
@@ -24,6 +25,23 @@ export interface PaletteValidation {
   errors: string[];
   warnings: string[];
 }
+
+const FINISHES: ReadonlySet<string> = new Set<ColorFinish>([
+  'solid',
+  'transparent',
+  'metallic',
+  'glitter',
+  'glow',
+]);
+
+/**
+ * A color whose last catalog year is older than this is treated as retired.
+ *
+ * One year of slack, not zero: the catalog year for a color still in
+ * production ticks over with the sets that use it, so a color can legitimately
+ * show last year = this year - 1 partway through a year.
+ */
+export const RETIRED_BEFORE = new Date().getUTCFullYear() - 1;
 
 /**
  * Structural validation only.
@@ -86,6 +104,24 @@ export function validatePaletteFile(file: unknown): PaletteValidation {
       errors.push(`${label} \`blColorId\` must be an integer or null`);
     }
 
+    if (c.trans !== undefined && typeof c.trans !== 'boolean') {
+      errors.push(`${label} \`trans\` must be a boolean`);
+    }
+    if (c.finish !== undefined && !FINISHES.has(c.finish)) {
+      errors.push(`${label} has an unknown \`finish\`: ${JSON.stringify(c.finish)}`);
+    }
+    if (c.years !== undefined) {
+      const y = c.years as unknown;
+      if (
+        !Array.isArray(y) ||
+        y.length !== 2 ||
+        !y.every((n) => Number.isInteger(n)) ||
+        y[0] > y[1]
+      ) {
+        errors.push(`${label} \`years\` must be [first, last] with first <= last`);
+      }
+    }
+
     if (c.elements !== undefined) {
       if (typeof c.elements !== 'object' || c.elements === null) {
         errors.push(`${label} \`elements\` must be an object keyed by design ID`);
@@ -146,6 +182,11 @@ export function loadPalette(options: LoadPaletteOptions = {}): Palette {
     allWarnings.push(
       'Palette data is unverified — check hex values and BrickLink IDs before ordering'
     );
+  } else if (file.provenance.bricklinkVerified === false) {
+    allWarnings.push(
+      'BrickLink color IDs are hand-maintained and unverified — check them before ' +
+        'uploading a Wanted List. Everything else in the palette comes from the catalog.'
+    );
   }
 
   const colors: LegoColor[] = file.colors.map((c) => {
@@ -165,6 +206,37 @@ export function loadPalette(options: LoadPaletteOptions = {}): Palette {
     byKey: new Map(colors.map((c) => [c.key, c])),
     warnings: allWarnings,
   };
+}
+
+/**
+ * Whether a color is still being produced, so far as the catalog says.
+ * A color with no year data is assumed current — a hand-maintained palette
+ * that omits the field should behave as it always did.
+ */
+export function isCurrent(color: Pick<LegoColor, 'years'>): boolean {
+  return color.years === undefined || color.years[1] >= RETIRED_BEFORE;
+}
+
+/**
+ * The colors switched on for a new project.
+ *
+ * The palette ships everything the catalog has, so that no choice is ever
+ * closed off; this is the subset that makes sense to quantize a photograph
+ * against by default. Two exclusions, both about matching rather than
+ * availability:
+ *
+ * - **Retired colors.** Real parts, orderable secondhand, but not something
+ *   you can add to a lego.com basket. Left available, switched off.
+ * - **Non-solid finishes.** Chrome, pearl, transparent and glitter bricks show
+ *   the room or whatever is behind them, so their nominal RGB is not what the
+ *   eye sees — and several of them collide exactly with a solid color's value
+ *   (Trans-Red and Red are both #C91A09), which would make the match between
+ *   them arbitrary.
+ */
+export function defaultColorKeys(colors: readonly LegoColor[]): string[] {
+  return colors
+    .filter((c) => (c.finish ?? 'solid') === 'solid' && isCurrent(c))
+    .map((c) => c.key);
 }
 
 /** The subset of a palette the user has switched on; all of it if unspecified. */
@@ -192,14 +264,32 @@ export function legalShapes(
 }
 
 /**
+ * The 1x1. Every other shape is optional; this one is the fallback that makes
+ * an arbitrary region coverable, which is why `assertCoverable` insists on it.
+ */
+export const REQUIRED_DESIGN_ID = '3005';
+
+/**
  * Colors that would be unusable under strict availability with this inventory.
  * The UI auto-disables these rather than letting the tiler fail mid-run.
+ *
+ * Two ways to be unusable, and the second is not obvious: a color with no legal
+ * shape at all, and a color that has some but not the 1x1. Flat Silver is real
+ * in a 2x2, a 2x4 and a 1x6 and in nothing smaller, so a single stray Flat
+ * Silver cell leaves a hole no brick in that color can fill. Colors like that
+ * used to be impossible to express — the availability data was a coarse tier
+ * estimate that gave every color a 1x1 — and became reachable the moment the
+ * palette started carrying real per-shape data.
  */
 export function unusableColors(
   colors: readonly LegoColor[],
   inventory: readonly string[]
 ): LegoColor[] {
-  return colors.filter((c) => legalShapes(c, inventory, true).length === 0);
+  return colors.filter(
+    (c) =>
+      legalShapes(c, inventory, true).length === 0 ||
+      !c.shapes.includes(REQUIRED_DESIGN_ID)
+  );
 }
 
 /** The element ID for a (color, design) pair, or null when it is not known. */

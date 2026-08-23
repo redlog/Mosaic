@@ -23,7 +23,11 @@ import {
   cellSize,
   finishedSize,
 } from '../lego/constants';
-import { enabledColors as selectColors, unusableColors } from '../lego/palette';
+import {
+  defaultColorKeys,
+  enabledColors as selectColors,
+  unusableColors,
+} from '../lego/palette';
 import { palette, type BuildSettings } from '../lego/build';
 import { useMosaicPipeline, type PipelineSource } from './useMosaicWorker';
 import { defaultInventoryFor } from '../lego/parts';
@@ -45,6 +49,12 @@ import type {
 
 export { palette };
 const allColors = [...palette.colors];
+
+/**
+ * Every color in the catalog is available; these are the ones a new project
+ * starts with. See `defaultColorKeys` for why the rest are off.
+ */
+export const DEFAULT_COLOR_KEYS: readonly string[] = defaultColorKeys(allColors);
 
 /** The 1x1 is mandatory: without it some regions cannot be covered at all. */
 export const REQUIRED_SHAPE = '3005';
@@ -145,7 +155,7 @@ export function initialState(): MosaicState {
       ditherStrength: 0,
       maxColors: null,
       strict: true,
-      enabledColors: allColors.map((c) => c.key),
+      enabledColors: [...DEFAULT_COLOR_KEYS],
     },
     tiler: {
       inventory: [...defaultInventoryFor('pips-out')],
