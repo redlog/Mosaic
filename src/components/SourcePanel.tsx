@@ -182,6 +182,7 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
               imageWidth={source.naturalWidth}
               imageHeight={source.naturalHeight}
               aspect={aspect}
+              lockAspect={!state.mosaic.linkAspect}
             />
           </div>
 

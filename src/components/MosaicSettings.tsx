@@ -136,8 +136,15 @@ export default function MosaicSettings({
             dispatch({ type: 'patchMosaic', patch: { linkAspect: e.target.checked } })
           }
         />
-        Keep the crop&rsquo;s proportions
+        Shape the mosaic to the crop
       </label>
+      <p className="note">
+        {mosaic.linkAspect
+          ? 'Drag the crop to any shape; the brick counts follow it.'
+          : 'Set both counts; the crop is reshaped to match them.'}{' '}
+        The crop and the finished mosaic always share proportions, or the picture comes
+        out stretched.
+      </p>
 
       <dl className="readout">
         <dt>Finished size</dt>

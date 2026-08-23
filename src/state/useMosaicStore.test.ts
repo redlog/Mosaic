@@ -22,6 +22,9 @@ const source: SourceState = {
 
 const loaded = (): MosaicState => reducer(initialState(), { type: 'setSource', source });
 
+/** Physical width / height of a crop of the 800x600 fixture. */
+const pixelAspect = (c: { w: number; h: number }) => (c.w * 800) / (c.h * 600);
+
 describe('withAspect', () => {
   it('reshapes a crop to the target aspect', () => {
     const crop = withAspect({ x: 0.2, y: 0.2, w: 0.6, h: 0.6 }, 800, 600, 1);
@@ -86,25 +89,76 @@ describe('orientation', () => {
   });
 
   /**
-   * Switching to a wall must reshape the crop, or the same crop sampled on
-   * 5:6 cells comes out vertically stretched.
+   * Switching to a wall must not distort: the same crop sampled on 5:6 cells
+   * comes out vertically stretched unless something gives. Which side gives is
+   * what `linkAspect` decides.
    */
-  it('reshapes the crop so the picture is not distorted', () => {
+  it('recounts the courses rather than recropping, when the crop leads', () => {
     const flat = loaded();
     const wall = reducer(flat, {
       type: 'patchMosaic',
       patch: { orientation: 'pips-up' },
     });
-    const pixelAspect = (c: { w: number; h: number }) => (c.w * 800) / (c.h * 600);
 
-    // The crop already spans the full height, so holding the new 5:6 shape
-    // narrows it rather than making it taller: 1.0000 -> 0.8333.
-    expect(pixelAspect(flat.crop)).toBeCloseTo(1, 6);
-    expect(pixelAspect(wall.crop)).toBeCloseTo(5 / 6, 6);
+    // The framing the user chose survives untouched. Pips-up courses are 1.2x
+    // taller, so the same picture needs 1/1.2 as many of them — and finishes
+    // at the same physical size, which is the point.
+    expect(wall.crop).toEqual(flat.crop);
+    expect(wall.mosaic.cols).toBe(flat.mosaic.cols);
+    expect(wall.mosaic.rows).toBeCloseTo(flat.mosaic.rows / 1.2, 0);
+
+    const before = finishedSize(flat.mosaic.cols, flat.mosaic.rows, 'pips-out');
+    const after = finishedSize(wall.mosaic.cols, wall.mosaic.rows, 'pips-up');
+    expect(after.heightMm).toBeCloseTo(before.heightMm, 0);
+    expect(pixelAspect(wall.crop)).toBeCloseTo(after.widthMm / after.heightMm, 2);
+  });
+
+  it('recrops instead, when the grid leads', () => {
+    const flat = reducer(loaded(), {
+      type: 'patchMosaic',
+      patch: { linkAspect: false },
+    });
+    const wall = reducer(flat, {
+      type: 'patchMosaic',
+      patch: { orientation: 'pips-up' },
+    });
+
+    // Brick counts are the user's here, so the crop is what narrows: the same
+    // grid on 5:6 cells needs a crop 5/6 as wide.
+    expect(wall.mosaic.rows).toBe(flat.mosaic.rows);
     expect(wall.crop.w).toBeLessThan(flat.crop.w);
+    expect(pixelAspect(wall.crop)).toBeCloseTo(pixelAspect(flat.crop) * (5 / 6), 6);
+  });
 
-    const built = finishedSize(wall.mosaic.cols, wall.mosaic.rows, 'pips-up');
-    expect(pixelAspect(wall.crop)).toBeCloseTo(built.widthMm / built.heightMm, 6);
+  /**
+   * The one thing neither mode may ever do. A crop whose proportions differ
+   * from the finished mosaic's is a stretched picture, and it is silent — the
+   * render looks fine until you hold it up against the photo.
+   */
+  it('keeps crop and mosaic proportions equal through every path', () => {
+    const paths: Array<[string, MosaicState]> = [];
+    for (const linkAspect of [true, false]) {
+      let s = reducer(loaded(), { type: 'patchMosaic', patch: { linkAspect } });
+      paths.push([`load, link=${linkAspect}`, s]);
+      s = reducer(s, { type: 'setCrop', crop: { x: 0, y: 0.1, w: 0.9, h: 0.4 } });
+      paths.push([`crop, link=${linkAspect}`, s]);
+      s = reducer(s, { type: 'patchMosaic', patch: { cols: 120 } });
+      paths.push([`cols, link=${linkAspect}`, s]);
+      s = reducer(s, { type: 'patchMosaic', patch: { rows: 30 } });
+      paths.push([`rows, link=${linkAspect}`, s]);
+      s = reducer(s, { type: 'patchMosaic', patch: { orientation: 'pips-up' } });
+      paths.push([`wall, link=${linkAspect}`, s]);
+    }
+
+    for (const [label, s] of paths) {
+      const built = finishedSize(s.mosaic.cols, s.mosaic.rows, s.mosaic.orientation);
+      // Whole bricks cannot express every ratio exactly; 1% is well under what
+      // any eye would catch, and the rounding is always the crop's to absorb.
+      expect(
+        Math.abs(pixelAspect(s.crop) / (built.widthMm / built.heightMm) - 1),
+        label
+      ).toBeLessThan(0.01);
+    }
   });
 });
 
@@ -126,17 +180,17 @@ describe('grid dimensions', () => {
     ).toBe(34);
   });
 
-  it('derives the other dimension from the crop, not the source image', () => {
-    // The crop has already been fit to the square 48x48 mosaic, so it is
-    // square regardless of the 4:3 source — and the grid stays square too.
-    const square = loaded();
-    expect(square.mosaic.linkAspect).toBe(true);
-    expect(
-      reducer(square, { type: 'patchMosaic', patch: { cols: 64 } }).mosaic.rows
-    ).toBe(64);
+  it('derives the other dimension from the crop', () => {
+    const state = loaded();
+    expect(state.mosaic.linkAspect).toBe(true);
+
+    // A full-frame crop of the 4:3 fixture: 64 columns wants 48 rows.
+    expect(reducer(state, { type: 'patchMosaic', patch: { cols: 64 } }).mosaic.rows).toBe(
+      48
+    );
 
     // Give it a genuinely wide crop and the derived height follows that.
-    const wideCrop = reducer(square, {
+    const wideCrop = reducer(state, {
       type: 'setCrop',
       crop: { x: 0, y: 0.25, w: 1, h: 0.5 },
     });
@@ -144,6 +198,72 @@ describe('grid dimensions', () => {
     expect(
       reducer(wideCrop, { type: 'patchMosaic', patch: { cols: 64 } }).mosaic.rows
     ).toBe(24);
+  });
+
+  /**
+   * The bug this replaced: the crop was fitted to the *grid* on load, so a
+   * 48x48 default made every photo square, and with the crop then locked to
+   * the grid and the grid derived from the crop, nothing could ever break the
+   * tie. Square was a fixed point you could not leave.
+   */
+  it('takes its proportions from the photo, not from the previous grid', () => {
+    const state = loaded();
+    expect(state.mosaic.cols / state.mosaic.rows).toBeCloseTo(4 / 3, 2);
+    expect(state.crop).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+
+    const portrait = reducer(initialState(), {
+      type: 'setSource',
+      source: { ...source, naturalWidth: 600, naturalHeight: 900 },
+    });
+    expect(portrait.mosaic.rows).toBeGreaterThan(portrait.mosaic.cols);
+  });
+
+  it('reshapes the grid when the crop is dragged', () => {
+    const tall = reducer(loaded(), {
+      type: 'setCrop',
+      crop: { x: 0.3, y: 0, w: 0.25, h: 1 },
+    });
+    // (0.25 * 800) / (1 * 600) = 0.333 — a tall, narrow mosaic.
+    expect(tall.mosaic.rows).toBeGreaterThan(tall.mosaic.cols * 2);
+    expect(tall.crop.w).toBeCloseTo(0.25, 2);
+  });
+
+  it('leaves the grid alone when the crop is dragged and the grid leads', () => {
+    const locked = reducer(loaded(), {
+      type: 'patchMosaic',
+      patch: { linkAspect: false },
+    });
+    const dragged = reducer(locked, {
+      type: 'setCrop',
+      crop: { x: 0.3, y: 0, w: 0.25, h: 1 },
+    });
+    expect(dragged.mosaic).toEqual(locked.mosaic);
+    // The width the drag asked for is honoured; the height is the grid's to
+    // dictate, so the crop comes back reshaped rather than as handed in.
+    expect(dragged.crop.w).toBeCloseTo(0.25, 6);
+    const built = finishedSize(
+      locked.mosaic.cols,
+      locked.mosaic.rows,
+      locked.mosaic.orientation
+    );
+    expect(pixelAspect(dragged.crop)).toBeCloseTo(built.widthMm / built.heightMm, 6);
+  });
+
+  it('absorbs a clamped derivation into the crop rather than distorting', () => {
+    // A crop this wide wants far fewer rows than the minimum allows, so the
+    // derived count clamps — and the crop has to give way to stay honest.
+    const sliver = reducer(loaded(), {
+      type: 'setCrop',
+      crop: { x: 0, y: 0.48, w: 1, h: 0.04 },
+    });
+    expect(sliver.mosaic.rows).toBe(MIN_GRID_DIMENSION);
+
+    const built = finishedSize(
+      sliver.mosaic.cols,
+      sliver.mosaic.rows,
+      sliver.mosaic.orientation
+    );
+    expect(pixelAspect(sliver.crop)).toBeCloseTo(built.widthMm / built.heightMm, 2);
   });
 
   it('leaves the other dimension alone when unlinked', () => {

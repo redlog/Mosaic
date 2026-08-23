@@ -1,19 +1,36 @@
 import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { clampCrop } from '../lego/frame';
-import { withAspect } from '../state/useMosaicStore';
+import { cropAspect, withAspect } from '../state/useMosaicStore';
 import type { CropRect } from '../lego/types';
 
-type Handle = 'nw' | 'ne' | 'sw' | 'se';
-const HANDLES: Handle[] = ['nw', 'ne', 'sw', 'se'];
+type Corner = 'nw' | 'ne' | 'sw' | 'se';
+type Edge = 'n' | 'e' | 's' | 'w';
+type Handle = Corner | Edge;
+
+const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se'];
+const EDGES: Edge[] = ['n', 'e', 's', 'w'];
+
+const isCorner = (h: Handle): h is Corner => h.length === 2;
+const pullsLeft = (h: Handle) => h === 'nw' || h === 'sw' || h === 'w';
+const pullsUp = (h: Handle) => h === 'nw' || h === 'ne' || h === 'n';
+/** Edge handles move one axis; 'n'/'s' leave the width alone and vice versa. */
+const movesX = (h: Handle) => h !== 'n' && h !== 's';
+const movesY = (h: Handle) => h !== 'e' && h !== 'w';
 
 export interface CropOverlayProps {
   crop: CropRect;
   onChange: (crop: CropRect) => void;
-  /** Source dimensions, needed to hold the physical aspect. */
+  /** Source dimensions, needed to reason about the physical aspect. */
   imageWidth: number;
   imageHeight: number;
-  /** Physical width / height the crop must keep. */
+  /** Physical width / height the crop must keep while `lockAspect` holds. */
   aspect: number;
+  /**
+   * Whether the grid's proportions constrain the crop. False when the crop is
+   * the master and the brick counts follow it, which is the default — then a
+   * drag is free in both axes and edge handles appear.
+   */
+  lockAspect: boolean;
 }
 
 const MIN_SPAN = 0.02;
@@ -21,9 +38,10 @@ const MIN_SPAN = 0.02;
 /**
  * Draggable, resizable crop rectangle.
  *
- * The aspect is locked to the mosaic's *physical* proportions, so resizing
- * only ever has one free dimension — the other follows. Corner drags anchor
- * the opposite corner, which is what makes the interaction feel predictable.
+ * Corner and edge drags anchor the opposite side, which is what makes the
+ * interaction feel predictable. When `lockAspect` is set, resizing has only one
+ * free dimension — the other follows the mosaic's *physical* proportions, and
+ * the edge handles are withdrawn because they have nothing left to say.
  */
 export default function CropOverlay({
   crop,
@@ -31,6 +49,7 @@ export default function CropOverlay({
   imageWidth,
   imageHeight,
   aspect,
+  lockAspect,
 }: CropOverlayProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{
@@ -40,9 +59,20 @@ export default function CropOverlay({
     start: CropRect;
   } | null>(null);
 
+  /**
+   * Zoom keeps whichever aspect is currently authoritative: the grid's when
+   * locked, otherwise the crop's own, so scrolling never quietly reshapes a
+   * frame the user placed by hand.
+   */
   const shape = useCallback(
-    (next: CropRect) => withAspect(next, imageWidth, imageHeight, aspect),
-    [imageWidth, imageHeight, aspect]
+    (next: CropRect) =>
+      withAspect(
+        next,
+        imageWidth,
+        imageHeight,
+        lockAspect ? aspect : cropAspect(crop, imageWidth, imageHeight)
+      ),
+    [imageWidth, imageHeight, aspect, lockAspect, crop]
   );
 
   const onPointerDown = (handle: Handle | 'move') => (event: ReactPointerEvent) => {
@@ -79,20 +109,30 @@ export default function CropOverlay({
       return;
     }
 
-    // Resize from a corner, anchoring the one diagonally opposite. Only the
-    // width is taken from the pointer; the height is derived, so the aspect
-    // cannot drift.
-    const anchorX = handle === 'nw' || handle === 'sw' ? start.x + start.w : start.x;
-    const anchorY = handle === 'nw' || handle === 'ne' ? start.y + start.h : start.y;
-    const pullingLeft = handle === 'nw' || handle === 'sw';
+    // Resize, anchoring the opposite corner or edge.
+    const left = pullsLeft(handle);
+    const up = pullsUp(handle);
+    const anchorX = left ? start.x + start.w : start.x;
+    const anchorY = up ? start.y + start.h : start.y;
 
-    const width = Math.max(MIN_SPAN, pullingLeft ? start.w - dx : start.w + dx);
-    const sized = shape({ x: 0, y: 0, w: width, h: width });
+    let w = movesX(handle)
+      ? Math.max(MIN_SPAN, left ? start.w - dx : start.w + dx)
+      : start.w;
+    let h = movesY(handle)
+      ? Math.max(MIN_SPAN, up ? start.h - dy : start.h + dy)
+      : start.h;
 
-    const x = pullingLeft ? anchorX - sized.w : anchorX;
-    const y = handle === 'nw' || handle === 'ne' ? anchorY - sized.h : anchorY;
+    if (lockAspect) {
+      // One free dimension only: take the width from the pointer and derive the
+      // height, so the aspect cannot drift over a long drag.
+      const sized = withAspect({ x: 0, y: 0, w, h }, imageWidth, imageHeight, aspect);
+      w = sized.w;
+      h = sized.h;
+    }
 
-    onChange(clampCrop({ x, y, w: sized.w, h: sized.h }));
+    onChange(
+      clampCrop({ x: left ? anchorX - w : anchorX, y: up ? anchorY - h : anchorY, w, h })
+    );
   };
 
   const onPointerUp = (event: ReactPointerEvent) => {
@@ -176,10 +216,12 @@ export default function CropOverlay({
         onPointerDown={onPointerDown('move')}
         onKeyDown={onKeyDown}
       >
-        {HANDLES.map((handle) => (
+        {(lockAspect ? CORNERS : [...CORNERS, ...EDGES]).map((handle) => (
           <span
             key={handle}
-            className={`crop-handle crop-handle--${handle}`}
+            className={`crop-handle crop-handle--${handle}${
+              isCorner(handle) ? '' : ' crop-handle--edge'
+            }`}
             onPointerDown={onPointerDown(handle)}
           />
         ))}

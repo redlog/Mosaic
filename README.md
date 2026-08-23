@@ -8,7 +8,8 @@ restored as a single JSON file.
 
 ## What it does
 
-- Upload a PNG or JPEG and frame it with a draggable crop box.
+- Upload a PNG or JPEG and frame it with a draggable, freely resizable crop box. The
+  mosaic takes the crop's shape — square, panoramic, portrait, whatever you frame.
 - Choose **pips out** (studs facing you, square cells, laid flat on a baseplate) or
   **pips up** (studs facing the ceiling, viewed edge-on as a stacked wall, 5:6 cells).
 - Set the mosaic size in bricks; see the finished size in inches.
@@ -87,6 +88,15 @@ Two consequences fall out of that table and are easy to get wrong. Sampling has 
 wide, so a square sampling grid squashes the picture. And the wall tiler staggers its
 seams into a running bond, because a seam repeating up the courses is a fracture line in
 a wall one stud deep.
+
+### Framing
+
+The crop and the finished mosaic must share proportions, or the picture comes out
+stretched. That is a hard rule — but which side gives way is a choice, and **Shape the
+mosaic to the crop** (on by default) makes it: with it on, the crop leads, so drag it to
+any shape and the brick counts follow; with it off, the counts lead and the crop is
+reshaped to match. Nothing forces a square. A photo opens framed edge to edge, and the
+mosaic starts out the shape of the photo.
 
 <img src="docs/screenshots/wall.png" alt="A pips-up wall showing running bond" width="360">
 

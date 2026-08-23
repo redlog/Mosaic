@@ -1,7 +1,8 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** built. All nine phases complete; see TODO.md for the two Phase 9 items that
-are prepared rather than performed (Firefox/Safari verification and the Pages deploy).
+**Status:** built. All nine phases complete, plus the Pick a Brick export (§11.3) and
+free-form framing (§9.3) added after v1; see TODO.md for the two Phase 9 items that are
+prepared rather than performed (Firefox/Safari verification and the Pages deploy).
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -97,6 +98,9 @@ Depth in both cases is one brick, 9.6 mm, plus the baseplate if used.
 1.2× taller than it is wide. If you sample on a square grid the image comes out
 vertically squashed. The crop rectangle's aspect ratio is therefore locked to
 `cols × cellW : rows × cellH`, not to `cols : rows`.
+
+That coupling is a hard invariant — but it says the two aspects must be _equal_, not
+which one gives way, and picking the wrong direction is its own bug. See §9.3.
 
 **(b) A brick in a pips-up wall cannot span two courses.** Brick height is fixed at
 9.6 mm, so the vertical extent of every visible brick face is exactly one cell.
@@ -726,9 +730,9 @@ Below 900px the layout collapses to a single column with a tab bar:
 **Source**
 
 - Drop zone and file picker (`image/png`, `image/jpeg`).
-- Thumbnail with a draggable, resizable crop rectangle. Drag to move, corner handles to
-  resize, scroll to zoom. Aspect locked to the mosaic aspect; the lock updates live when
-  the mosaic dimensions change.
+- Thumbnail with a draggable, resizable crop rectangle. Drag to move, handles to resize,
+  scroll to zoom. Corner handles always; edge handles as well when the crop is the master
+  and free to change shape (§9.3).
 - Buttons: _Fit whole image_, _Center_, _Reset_.
 - Rotate 90° CW / CCW, flip horizontal / vertical.
 
@@ -736,8 +740,8 @@ Below 900px the layout collapses to a single column with a tab bar:
 
 - Orientation: two radio cards, each with the small diagram from §2.1 and its cell ratio.
 - Width in bricks, height in bricks — number input plus slider, range 8–256.
-- _Link to image aspect_ toggle: when on, editing width recomputes height from the crop
-  aspect, correctly accounting for the 5:6 cell in pips-up.
+- _Shape the mosaic to the crop_ toggle, on by default: which side of the aspect lock
+  leads (§9.3), with a line of text under it saying what the current mode does.
 - Live readout: finished size in inches **and** cm, total studs, and in pips-out the
   number of 48×48 baseplates required.
 
@@ -768,7 +772,38 @@ Below 900px the layout collapses to a single column with a tab bar:
 - PNG (scale 1× / 2× / 4×, with the resulting pixel dimensions shown), CSV,
   BrickLink XML, Save Project, Load Project.
 
-### 9.3 Accessibility
+### 9.3 Which side of the crop/grid lock gives way
+
+§2.4a fixes crop aspect **=** mosaic physical aspect. It does not say which one moves
+when they disagree, and that choice is the whole feel of the framing UI. Exactly one of
+the two is the master, chosen by _Shape the mosaic to the crop_:
+
+| Toggle           | Master   | Crop drag                     | Setting a brick count      | Orientation switch                      |
+| ---------------- | -------- | ----------------------------- | -------------------------- | --------------------------------------- |
+| **On** (default) | the crop | free, both axes; grid follows | re-derives the other count | keeps the framing, recounts the courses |
+| Off              | the grid | aspect-locked, one free axis  | reshapes the crop          | reshapes the crop                       |
+
+**A closed loop is the failure mode here, and v1 shipped with one.** The crop was fitted
+to the grid on load — so a 48×48 default made every photo square regardless of its
+subject — while the crop overlay was aspect-locked to the grid _and_ the grid was derived
+from the crop. Each side deferred to the other, so nothing could break the tie: square
+was a fixed point with no exit but the toggle, which read as a minor convenience and not
+as the only way out. A landscape photo could not produce a landscape mosaic.
+
+The fix is not to loosen the invariant but to make the mastership one-directional and
+explicit. With the crop leading, a load starts from the whole photo and the counts take
+its shape; a drag is free in both axes and the counts follow.
+
+Two details that keep it honest:
+
+- **Rounding is always the crop's to absorb.** Whole bricks cannot express every ratio,
+  and a derived count can clamp at the 8–256 limits. After deriving, the crop is refit to
+  the grid's actual aspect, so the two never drift apart — the residual is under 1%.
+- **The reducer enforces the invariant, not just the overlay.** With the grid leading,
+  `setCrop` refits rather than trusting its caller, so the guarantee does not rest on the
+  UI being the only writer.
+
+### 9.4 Accessibility
 
 Every control keyboard reachable with an associated label. Color entries always carry
 their name as text, never color alone. The preview canvas carries an `aria-label`

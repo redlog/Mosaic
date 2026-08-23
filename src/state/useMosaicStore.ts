@@ -20,6 +20,7 @@ import {
   MIN_GRID_DIMENSION,
   WARN_GRID_DIMENSION,
   baseplatesFor,
+  cellSize,
   finishedSize,
 } from '../lego/constants';
 import { enabledColors as selectColors, unusableColors } from '../lego/palette';
@@ -68,7 +69,15 @@ export interface MosaicSettings {
   orientation: Orientation;
   cols: number;
   rows: number;
-  /** Keep the grid proportioned to the crop when one dimension changes. */
+  /**
+   * Which side of the crop/grid coupling is the master.
+   *
+   * The crop's physical aspect must always equal the mosaic's, or the picture
+   * comes out stretched (DESIGN.md §2.4a). That is not negotiable; what is
+   * negotiable is which one gives way. When true the crop leads — drag it to
+   * any shape and the brick counts follow. When false the grid leads — set the
+   * counts and the crop is reshaped to match.
+   */
   linkAspect: boolean;
 }
 
@@ -147,10 +156,42 @@ const clamp = (v: number, lo: number, hi: number): number =>
   v < lo ? lo : v > hi ? hi : v;
 
 /**
+ * The crop's own physical aspect, as width / height in real-world proportions.
+ * The normalized rect is relative to the image, so the image's own dimensions
+ * have to come back in.
+ */
+export function cropAspect(
+  crop: CropRect,
+  imageWidth: number,
+  imageHeight: number
+): number {
+  return (crop.w * imageWidth) / (crop.h * imageHeight);
+}
+
+/**
+ * Brick counts matching a crop's shape, holding one dimension fixed.
+ *
+ * The inverse of `withAspect`: instead of bending the crop to the grid, bend
+ * the grid to the crop. `hold` says which count the user just chose and must
+ * therefore be left alone.
+ */
+export function gridForAspect(
+  aspect: number,
+  orientation: Orientation,
+  hold: { cols: number } | { rows: number }
+): { cols: number; rows: number } {
+  const cellRatio = cellSize(orientation).h / cellSize(orientation).w;
+  const fit = (v: number) => clamp(Math.round(v), MIN_GRID_DIMENSION, MAX_GRID_DIMENSION);
+  // mosaicAspect = cols / (rows * cellRatio); solve for the other side.
+  return 'cols' in hold
+    ? { cols: fit(hold.cols), rows: fit(fit(hold.cols) / (aspect * cellRatio)) }
+    : { cols: fit(fit(hold.rows) * aspect * cellRatio), rows: fit(hold.rows) };
+}
+
+/**
  * Reshape a crop to a target physical aspect, keeping its centre and staying
- * inside the image. Called whenever the grid or orientation changes, because
- * the crop's shape is a function of the mosaic's shape, not the other way
- * round (DESIGN.md §2.4a).
+ * inside the image. Used when the grid leads (`linkAspect` false), and to
+ * repair the crop when a derived brick count hits a limit and clamps.
  */
 export function withAspect(
   crop: CropRect,
@@ -211,15 +252,30 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
         loadedGrid: null,
         error: null,
       };
-      const aspect = cropAspectFor(
-        state.mosaic.cols,
-        state.mosaic.rows,
-        state.mosaic.orientation
-      );
+      const { naturalWidth: w, naturalHeight: h } = action.source;
+
+      if (state.mosaic.linkAspect) {
+        // The crop leads, so start from the whole photo and let the brick
+        // counts take its shape. A landscape photo should open as a landscape
+        // mosaic; forcing it into the previous grid's proportions is what made
+        // every mosaic square regardless of its subject.
+        next.crop = { x: 0, y: 0, w: 1, h: 1 };
+        next.mosaic = {
+          ...state.mosaic,
+          ...gridForAspect(w / h, state.mosaic.orientation, {
+            cols: state.mosaic.cols,
+          }),
+        };
+        // Rounding to whole bricks moves the aspect slightly; the crop has to
+        // follow exactly or the picture stretches.
+        next.crop = refit(next);
+        return next;
+      }
+
       next.crop = centerCropForAspect(
-        action.source.naturalWidth,
-        action.source.naturalHeight,
-        aspect
+        w,
+        h,
+        cropAspectFor(state.mosaic.cols, state.mosaic.rows, state.mosaic.orientation)
       );
       return next;
     }
@@ -227,8 +283,32 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
     case 'clearSource':
       return { ...initialState(), view: state.view };
 
-    case 'setCrop':
-      return { ...state, crop: clampCrop(action.crop) };
+    case 'setCrop': {
+      const crop = clampCrop(action.crop);
+      if (!state.source) return { ...state, crop };
+      // Grid leads: the crop is reshaped to it. The overlay already holds this
+      // shape while dragging, but enforcing it here means the invariant does
+      // not depend on the UI being the only caller.
+      if (!state.mosaic.linkAspect) return { ...state, crop: refit(state, crop) };
+
+      // The crop leads: reshaping it re-proportions the grid. Width in bricks
+      // is what the user set explicitly, so that is what is held.
+      const { naturalWidth: w, naturalHeight: h } = state.source;
+      const next: MosaicState = {
+        ...state,
+        crop,
+        mosaic: {
+          ...state.mosaic,
+          ...gridForAspect(cropAspect(crop, w, h), state.mosaic.orientation, {
+            cols: state.mosaic.cols,
+          }),
+        },
+      };
+      // Whole bricks cannot express every aspect exactly, and a derived count
+      // can clamp at the grid limits. Either way the crop yields the remainder,
+      // so the two never disagree.
+      return { ...next, crop: refit(next, crop) };
+    }
 
     case 'fitCrop': {
       if (!state.source) return state;
@@ -277,24 +357,29 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
         };
       }
 
-      // When the aspect is linked, the *other* dimension follows the crop.
+      // When the crop leads, the *other* dimension follows it. Whichever count
+      // the user just moved is the one held fixed.
       if (state.mosaic.linkAspect && state.source) {
-        const cropAspect =
-          (state.crop.w * state.source.naturalWidth) /
-          (state.crop.h * state.source.naturalHeight);
-        const cellRatio = mosaic.orientation === 'pips-up' ? 9.6 / 8 : 1;
-        // mosaicAspect = cols / (rows * cellRatio); solve for the other side.
-        if (action.patch.cols !== undefined) {
-          mosaic.rows = clamp(
-            Math.round(mosaic.cols / (cropAspect * cellRatio)),
-            MIN_GRID_DIMENSION,
-            MAX_GRID_DIMENSION
+        const aspect = cropAspect(
+          state.crop,
+          state.source.naturalWidth,
+          state.source.naturalHeight
+        );
+        if (action.patch.rows !== undefined) {
+          Object.assign(
+            mosaic,
+            gridForAspect(aspect, mosaic.orientation, { rows: mosaic.rows })
           );
-        } else if (action.patch.rows !== undefined) {
-          mosaic.cols = clamp(
-            Math.round(mosaic.rows * cropAspect * cellRatio),
-            MIN_GRID_DIMENSION,
-            MAX_GRID_DIMENSION
+        } else if (
+          action.patch.cols !== undefined ||
+          action.patch.orientation !== undefined
+        ) {
+          // Orientation counts too. Pips-up cells are 1.2x taller, so the same
+          // framing is covered by fewer, taller courses at the same finished
+          // size — rather than by cropping the top and bottom off the picture.
+          Object.assign(
+            mosaic,
+            gridForAspect(aspect, mosaic.orientation, { cols: mosaic.cols })
           );
         }
       }

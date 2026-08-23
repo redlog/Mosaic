@@ -17,9 +17,10 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
    needs the DOM, it probably belongs in `src/components/` instead.
 
 **Current status:** all nine phases complete, plus Phase 11 (the Pick a Brick export)
-added afterwards. Two items are prepared rather than done and are marked `[~]` in
-Phase 9: cross-browser verification on Firefox/Safari, and the Pages deployment itself.
-Phase 11 needs real element-ID data loaded, which is data entry rather than code.
+and Phase 12 (free-form framing) added afterwards. Two items are prepared rather than
+done and are marked `[~]` in Phase 9: cross-browser verification on Firefox/Safari, and
+the Pages deployment itself. Phase 11 needs real element-ID data loaded, which is data
+entry rather than code.
 
 ---
 
@@ -520,6 +521,39 @@ Added after v1, on request: a CSV importable at lego.com. See DESIGN.md §11.3.
 > coincidence that holds for some old parts, not a formula. Fabricated IDs would import
 > cleanly and order the wrong bricks, and the format has no name column to catch it by
 > eye. The machinery ships complete and the data slot ships empty, with the UI saying so.
+
+---
+
+## Phase 12 — Free-form framing
+
+Reported after v1: the crop box always came out square. See DESIGN.md §9.3.
+
+- [x] `gridForAspect()` — the inverse of `withAspect`, deriving brick counts from a
+      crop's shape while holding whichever count the user set
+- [x] A photo loads framed edge to edge, with the grid taking the photo's proportions
+- [x] `setCrop` re-proportions the grid when the crop leads, and refits the crop when
+      the grid leads — the invariant is the reducer's, not the overlay's
+- [x] Free two-axis corner drags plus N/E/S/W edge handles when the crop leads;
+      aspect-locked corners only when the grid leads
+- [x] Orientation switches keep the framing and recount the courses, instead of
+      recropping the picture
+- [x] Toggle relabelled _Shape the mosaic to the crop_, with live explanatory text
+- [x] Tests: both modes across load / crop / cols / rows / orientation, asserting
+      crop and mosaic proportions stay equal within 1% on every path
+- [x] Verified in Chromium: edge drags, free corner drags, the locked mode holding
+      its aspect, and a non-square project surviving a save/reopen round trip
+
+> **A closed loop, not a missing feature.** Nothing ever demanded a square. The crop was
+> fitted to the grid on load (48×48 → square), the overlay was aspect-locked to the grid,
+> and the grid was derived from the crop — so each side deferred to the other and the tie
+> could never break. Every photo became square and the only exit was a checkbox that read
+> like a minor convenience. Worth remembering when two things are "kept in sync": decide
+> which one is the master, or neither is.
+
+> A test of mine failed here and the code was right, again: I expected a pips-up switch
+> to spend _more_ courses on the same framing. It spends fewer — courses are 1.2× taller,
+> so the same picture needs 1/1.2 as many, and finishes at the same physical size. The
+> assertion that matters is the one on finished height, which held all along.
 
 ---
 

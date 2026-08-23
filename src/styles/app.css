@@ -338,6 +338,40 @@ details summary {
   cursor: nwse-resize;
 }
 
+/* Edge handles appear only when the crop is free to change shape. They are
+   slimmer than the corners so a small crop does not become all handle. */
+.crop-handle--edge {
+  border-radius: 3px;
+}
+.crop-handle--n,
+.crop-handle--s {
+  left: 50%;
+  width: 22px;
+  height: 8px;
+  margin-left: -11px;
+  cursor: ns-resize;
+}
+.crop-handle--n {
+  top: -4px;
+}
+.crop-handle--s {
+  bottom: -4px;
+}
+.crop-handle--e,
+.crop-handle--w {
+  top: 50%;
+  width: 8px;
+  height: 22px;
+  margin-top: -11px;
+  cursor: ew-resize;
+}
+.crop-handle--w {
+  left: -4px;
+}
+.crop-handle--e {
+  right: -4px;
+}
+
 /* ---- palette ---- */
 
 .swatches {
