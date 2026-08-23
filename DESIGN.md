@@ -1,6 +1,6 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Phases 0-2 complete (toolchain, domain core, image pipeline)
+**Status:** design approved; Phases 0-3 complete (toolchain, domain core, image pipeline, tilers)
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -460,7 +460,18 @@ score = W_pieces × pieces
       + W_seam   × (aligned seams)
 ```
 
-Defaults `W_pieces = 1.0`, `W_ones = 0.5`, `W_seam = 0.25`, all exposed as advanced sliders.
+Defaults `W_pieces = 1.0`, `W_ones = 0.5`, all exposed as advanced sliders.
+
+`W_seam` differs by orientation — **0.25 laid flat, 0.5 in a wall** — because the same
+number means different things in the two constructions. Flat on a baseplate an aligned
+seam is an appearance problem; in a one-stud-deep wall it is a fracture line.
+
+The wall value is forced by a specific case rather than chosen by taste. A 32-wide run
+has exactly one minimum-piece tiling, 8+8+8+8, so seams at columns 8, 16 and 24 are
+unavoidable at four pieces and breaking the bond costs a fifth. At 0.25 those three
+aligned seams price at 0.75 against the 1.0 of an extra brick, so the tiler stacks them
+into a continuous crack the full height of the wall. At 0.5 the arithmetic reverses and
+the bond breaks. Measured cost on a solid 32-wide wall: about 6% more pieces.
 
 Piece count is a proxy for cost. It is not a perfect proxy — a 2×8 costs more than a
 1×1 — but real per-part prices vary by color and by seller, and they are not available
@@ -520,6 +531,17 @@ Exact minimum tiling of an arbitrary polyomino by a restricted rectangle set is 
 so this is deliberately a heuristic. Randomized-restart greedy on an inventory this small
 lands within a few percent of optimal in practice, and it is fast enough to run hundreds
 of trials inside a time budget.
+
+**Measured on a 48×48 test scene** (sky gradient, sun, building, ground), strict
+availability on, 200 restarts:
+
+| Orientation | Pieces | vs all-1×1             | 1×1s | Aligned seams | Time   |
+| ----------- | ------ | ---------------------- | ---- | ------------- | ------ |
+| pips-out    | 330    | 2,304 → **7.0× fewer** | 39   | 178           | 430 ms |
+| pips-up     | 542    | 2,304 → **4.3× fewer** | 42   | 73            | 4 ms   |
+
+The wall uses more pieces because it is restricted to 1×N, and finishes in single-digit
+milliseconds because its DP is exact and runs once rather than two hundred times.
 
 **Restarts:** default 200, bounded by a 1.5 s budget (whichever comes first), so large
 grids degrade to fewer trials rather than to a frozen tab. Seed is stored in the project
@@ -919,7 +941,8 @@ verified manually.
 
 **tile-flat.ts / tile-wall.ts** — the six invariants from §7.4, plus:
 
-- A solid 8×8 region of a fully-available color tiles in exactly 8 pieces using 2×8s.
+- A solid 8×8 region of a fully-available color tiles in exactly 4 pieces using 2×8s
+  (64 cells, 16 cells per 2×8 — the theoretical floor).
 - Wall: a run of 5 tiles as 2 pieces (3+2); a run of 7 as 2 pieces (4+3).
 - Wall: a solid rectangle produces zero aligned seams under default weights.
 - Identical seeds produce identical output; different seeds produce valid output.
@@ -956,18 +979,19 @@ error node.
 
 ## 15. Defaults
 
-| Setting                          | Default                            | Reasoning                                                     |
-| -------------------------------- | ---------------------------------- | ------------------------------------------------------------- |
-| Orientation                      | `pips-out`                         | square cells, most intuitive first result                     |
-| Dimensions                       | 48 × 48                            | one standard baseplate, ~15″                                  |
-| Max brick length                 | 8 studs                            | longer bricks cost more per stud and have thin color coverage |
-| 2×N bricks                       | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change   |
-| Dithering                        | off                                | it directly fights the large-brick goal                       |
-| Strict availability              | on                                 | a parts list you can actually fill                            |
-| `W_pieces` / `W_ones` / `W_seam` | 1.0 / 0.5 / 0.25                   |                                                               |
-| Restarts (pips-out)              | 200, 1.5 s budget                  |                                                               |
-| Stagger lookback (pips-up)       | `[1.0, 0.4]`                       | two courses back, decaying                                    |
-| Render                           | build view, 24 px/stud, 1×         |                                                               |
+| Setting                    | Default                            | Reasoning                                                     |
+| -------------------------- | ---------------------------------- | ------------------------------------------------------------- |
+| Orientation                | `pips-out`                         | square cells, most intuitive first result                     |
+| Dimensions                 | 48 × 48                            | one standard baseplate, ~15″                                  |
+| Max brick length           | 8 studs                            | longer bricks cost more per stud and have thin color coverage |
+| 2×N bricks                 | on in pips-out, **off** in pips-up | in a wall they double cost and depth for zero visual change   |
+| Dithering                  | off                                | it directly fights the large-brick goal                       |
+| Strict availability        | on                                 | a parts list you can actually fill                            |
+| `W_pieces` / `W_ones`      | 1.0 / 0.5                          |                                                               |
+| `W_seam`                   | 0.25 flat, **0.5 in a wall**       | structural rather than cosmetic in a wall; see §7             |
+| Restarts (pips-out)        | 200, 1.5 s budget                  |                                                               |
+| Stagger lookback (pips-up) | `[1.0, 0.4]`                       | two courses back, decaying                                    |
+| Render                     | build view, 24 px/stud, 1×         |                                                               |
 
 ---
 

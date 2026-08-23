@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-2 complete. Start at Phase 3.1.
+**Current status:** Phases 0-3 complete. Start at Phase 4.
 
 ---
 
@@ -187,47 +187,70 @@ stays circular in _physical_ space in both orientations.
 
 ---
 
-## Phase 3 — Tiling
+## Phase 3 — Tiling ✅
 
 The core value of the app. Both tilers share `score.ts`.
 
-### 3.1 Shared scoring — `src/lego/score.ts`
+### 3.1 Shared scoring — `src/lego/score.ts` ✅
 
-- [ ] Owner map (`Int32Array`, placement index per cell)
-- [ ] 4-corner junction counter (§7.1)
-- [ ] `score(placements, owner, weights)` = `W_pieces·pieces + W_ones·ones + W_seam·seams`
-- [ ] `validateTiling(tiling, grid, inventory, strict)` — the six invariants from §7.4,
-      reused by every tiler test
+- [x] Owner map (`Int32Array`, placement index per cell)
+- [x] 4-corner junction counter (§7.1) — serves both orientations, since four
+      distinct bricks can only meet at a point in a wall when a seam stacks
+- [x] `scoreTiling()` = `W_pieces·pieces + W_ones·ones + W_seam·seams`
+- [x] `validateTiling()` — the six invariants from §7.4, reused by every tiler test
+- [x] `expandFootprints()`, `assertCoverable()`
 
-### 3.2 Pips-out tiler — `src/lego/tile-flat.ts`
+### 3.2 Pips-out tiler — `src/lego/tile-flat.ts` ✅
 
-- [ ] Randomized greedy: largest area first, ties shuffled per trial
-- [ ] Both rotations of each non-square shape
-- [ ] Randomized raster origin and row/column-major alternation per trial
-- [ ] Strict-availability check at placement time
-- [ ] 1×1 fill for the remainder
-- [ ] Restart loop with time budget (default 200 trials / 1.5 s), keep best by score
-- [ ] Progress callback between trials
-- [ ] Tests: all six invariants; solid 8×8 of an available color → exactly 8 pieces;
-      determinism under a fixed seed
+- [x] Randomized greedy: largest area first, ties shuffled per trial
+- [x] Both rotations of each non-square shape
+- [x] Randomized raster origin and row/column-major alternation per trial
+- [x] Strict-availability check precomputed into a (color × footprint) table
+- [x] Restart loop with time budget (default 200 trials / 1.5 s), keep best by score
+- [x] Progress callback between trials
+- [x] Tests: all six invariants over a 13-grid corpus; solid 8×8 → exactly **4**
+      pieces (not 8 — a 2×8 covers 16 cells, so 64/16 is the floor); determinism
+      under a fixed seed
 
-### 3.3 Pips-up tiler — `src/lego/tile-wall.ts`
+### 3.3 Pips-up tiler — `src/lego/tile-wall.ts` ✅
 
-- [ ] Maximal same-color run extraction per course
-- [ ] Coin-change DP with seam penalty folded into the state (§7.2)
-- [ ] Bottom-up course order, matching build order
-- [ ] Weighted lookback over the previous K courses, default `[1.0, 0.4]`
-- [ ] Legal-length filtering per color under strict availability
-- [ ] Tests: all six invariants (including `h === 1` everywhere); run of 5 → 2 pieces
-      (3+2); run of 7 → 2 pieces (4+3); solid rectangle → zero aligned seams
+- [x] Maximal same-color run extraction per course
+- [x] Coin-change DP with seam penalty folded into the state (§7.2)
+- [x] Bottom-up course order, matching build order
+- [x] Weighted lookback over the previous K courses, default `[1.0, 0.4]`
+- [x] Color-change boundaries recorded as seams the next course should avoid,
+      though never charged for — they are forced, so charging adds a constant
+- [x] Legal-length filtering per color under strict availability
+- [x] Tests: run of 5 → 2 pieces (3+2); run of 7 → 2 pieces (4+3); solid
+      rectangle → zero aligned seams
 
-### 3.4 Dispatch
+> **The wall needs its own seam weight, and finding out why was the interesting part
+> of this phase.** At the flat default of 0.25 a solid wall stacked every seam into a
+> continuous vertical crack. The cause is arithmetic, not a bug: a 32-wide run has
+> exactly one minimum-piece tiling (8+8+8+8), so seams at 8/16/24 are unavoidable at
+> four pieces and breaking the bond costs a fifth. Three aligned seams at 0.25 price at
+> 0.75, cheaper than the 1.0 of an extra brick. `DEFAULT_WALL_WEIGHTS` uses **0.5**,
+> which reverses that (1.5 > 1.0) and costs about 6% more pieces. Justified by the
+> design doc's own line that seams are cosmetic laid flat and structural in a wall —
+> the numbers just never reflected it.
 
-- [ ] `tile(grid, orientation, settings)` routes to the correct tiler
-- [ ] Emits `TilingStats` including elapsed time and trials actually run
+### 3.4 Dispatch — `src/lego/tile.ts` ✅
+
+- [x] `tile(grid, orientation, options)` routes to the correct tiler
+- [x] Emits `TilingStats` including elapsed time and trials actually run
+- [x] `naivePieceCount()` for the "vs 1×1" comparison in the stats card
 
 **Done when:** both tilers pass `validateTiling` on a corpus of random and pathological
-grids (single color, checkerboard, thin stripes, one-cell islands).
+grids (single color, checkerboard, thin stripes, one-cell islands). ✅ — 13-grid corpus
+covering all of those plus diagonals, nested blocks, 1-wide columns and noise.
+
+Measured on a 48×48 scene: pips-out 330 pieces (7.0× fewer than all-1×1) in 430 ms;
+pips-up 542 pieces (4.3× fewer) in 4 ms.
+
+**One constraint worth remembering:** the 1×1 brick must stay in the inventory. Without
+it some regions are uncoverable — an inventory of only 1×2 cannot tile an odd-length
+run. `assertCoverable()` throws with that explanation rather than letting it surface as
+mysterious uncovered cells, and the UI must not let the user disable 1×1.
 
 ---
 
