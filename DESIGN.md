@@ -1,7 +1,7 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Phases 0-5 complete (toolchain, domain core, image pipeline,
-tilers, exports, renderer). UI next.
+**Status:** design approved; Phases 0-6 complete. The app runs end to end: upload a
+photo, get a mosaic, parts list and exports. Worker, project save/load and polish remain.
 **Version:** 1.0 (2026-08-23)
 
 ---

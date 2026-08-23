@@ -19,13 +19,16 @@ restored as a single JSON file.
 
 ## Status
 
-**Milestone 1 complete.** An image goes in and a validated tiling, a parts list, a CSV
-and a BrickLink Wanted List come out — entirely in Node tests, no browser. Toolchain,
-domain core, image pipeline, both tilers, and the exports are done. Rendering and the
-UI are next.
+**The app works end to end.** Drop in a photo, frame it, choose an orientation and
+size, and get a rendered brick preview, a parts list and downloadable exports. Phases
+0–6 are done; the Web Worker, project save/load and final polish remain.
 
 On a 48×48 test scene the tiler produces **330 bricks where all-1×1s would need 2,304**
 — a 7× reduction — in 45 orderable lots across 16 colors.
+
+```bash
+npm install && npm run dev
+```
 
 - [DESIGN.md](./DESIGN.md) — full design: geometry, algorithms, data model, UI, formats
 - [TODO.md](./TODO.md) — phased implementation plan

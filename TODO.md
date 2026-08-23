@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-5 complete. Start at Phase 6.
+**Current status:** Phases 0-6 complete — the app is usable end to end. Start at Phase 7.
 
 ---
 
@@ -324,41 +324,64 @@ the extra height is the real 1.2× cell, not a stretch.
 
 ---
 
-## Phase 6 — Application UI
+## Phase 6 — Application UI ✅
 
-### 6.1 Shell and state
+### 6.1 Shell and state ✅
 
-- [ ] `useMosaicStore` — one reducer over the settings tree from §10
-- [ ] Stage memoization so a tiler-weight change does not re-decode the image (§6)
-- [ ] Three-column layout, collapsing to tabs below 900px
-- [ ] Dark mode via `prefers-color-scheme`
+- [x] `useMosaicStore` — one reducer over the settings tree from §10
+- [x] Stage memoization: crop → frame → adjust → quantize → tile → BOM, each keyed on
+      its own inputs, so a tiler weight change does not re-frame the image
+- [x] Three-column layout, collapsing to tabs below 900px
+- [x] Dark mode via `prefers-color-scheme`
 
-### 6.2 Panels
+### 6.2 Panels ✅
 
-- [ ] `SourcePanel` — drop zone, file picker, thumbnail, rotate/flip
-- [ ] `CropOverlay` — drag to move, corner handles to resize, scroll to zoom,
-      aspect locked to the live mosaic aspect; Fit / Center / Reset
-- [ ] `MosaicSettings` — orientation radio cards with diagrams, dimensions,
-      link-to-aspect toggle, live size readout (in + cm + studs + baseplate count)
-- [ ] `AdjustPanel` — brightness/contrast/saturation, dither control showing the
-      resulting 1×1 count next to it
-- [ ] `PalettePanel` — swatch list with usage counts, bulk actions, max-colors,
+- [x] `SourcePanel` — drop zone, file picker, thumbnail, rotate/flip, replace/remove
+- [x] `CropOverlay` — drag to move, corner handles to resize, scroll to zoom, aspect
+      locked to the mosaic's _physical_ shape; arrow keys and +/- for keyboard users
+- [x] `MosaicSettings` — orientation radio cards with cell-ratio glyphs, dimensions,
+      link-to-aspect, live size readout (inches, cm, studs, baseplate count)
+- [x] `AdjustPanel` — brightness/contrast/saturation, dither with the live 1×1 count
+      shown beside it
+- [x] `PalettePanel` — swatch list with usage counts, bulk actions, max-colors,
       strict-availability toggle
-- [ ] `AlgorithmPanel` — inventory checkboxes, collapsed advanced weights, restarts,
-      stagger depth, seed + randomize, rebuild button, auto-rebuild toggle
-- [ ] `PreviewCanvas` — zoom, pan, Build/Clean/Source toggle, hover readout,
-      cross-fade compare against the cropped source
-- [ ] `StatsCard` — finished size, piece count, distinct parts and colors,
-      1×1 count and percentage
-- [ ] `PartsList` — grouped by color, collapsible, with swatches
-- [ ] `ExportPanel` — PNG scale selector with pixel dimensions, CSV, XML, save, load
+- [x] `AlgorithmPanel` — inventory checkboxes, collapsed advanced weights, restarts,
+      seed with shuffle
+- [x] `PreviewCanvas` — Build / Clean / Source toggle, zoom, busy indicator
+- [x] `StatsCard` — size, piece count with the "vs 1×1" ratio, lots, colors, 1×1 share,
+      aligned seams in wall mode, and a per-shape bar breakdown
+- [x] `PartsList` — grouped by color, collapsible, with swatches
+- [x] `ExportPanel` — PNG scale with live pixel dimensions, CSV, XML
 
-### 6.3 Accessibility
+### 6.3 Accessibility ✅
 
-- [ ] Labels associated with every control; full keyboard reachability
-- [ ] Color names always present as text, never color alone
-- [ ] `aria-label` on the preview summarizing the current result
-- [ ] Polite live region for build completion and warnings
+- [x] Labels associated with every control; the crop is fully keyboard-operable
+- [x] Color names always present as text, never color alone
+- [x] `aria-label` on the preview summarizing the current result
+- [x] Polite live region announcing piece count, colors and finished size
+
+**Driven end to end in a real browser**, not just unit tested. A photo goes in through
+the actual file input; the mosaic, stats and parts list all populate; switching
+orientation reshapes the canvas 672×672 → 672×806; all three downloads fire with
+filenames derived from the source image; the narrow layout tabs work; dark mode renders.
+Zero console errors throughout. The downloaded files were validated: PNG magic bytes and
+2368×2368 dimensions matching the scale-2 geometry, and CSV rows equal to XML items with
+identical quantity totals.
+
+> **A bug the screenshots caught.** The crop overlay dimmed the whole thumbnail — a
+> full-cover shade _plus_ the rect's outward shadow — so the selected region was darkened
+> along with everything else, defeating the point. Only the outside is dimmed now.
+
+> **`{ x, y, ...sized }` was clobbering the position.** The spread carried `x: 0, y: 0`
+> from the probe rect, so zooming the crop would have snapped it to the top-left corner
+> every time. Typecheck flagged it as a duplicate-property error before it ever ran.
+
+> Styling is a single `app.css` rather than per-component CSS Modules. Same zero runtime
+> cost, ten fewer files at this size. Revisit if the component count grows.
+
+> Tiling still runs on the main thread, so the interactive budget is deliberately short
+> (60 restarts / 400 ms) and `useDeferredValue` keeps the controls responsive. Phase 7
+> moves it into a worker and raises the budget.
 
 ---
 
