@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import CropOverlay from './CropOverlay';
-import { cropAspectFor } from '../lego/frame';
 import {
   ACCEPTED_TYPES,
   LARGE_IMAGE_PIXELS,
@@ -111,11 +110,6 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
   };
 
   const source = state.source;
-  const aspect = cropAspectFor(
-    state.mosaic.cols,
-    state.mosaic.rows,
-    state.mosaic.orientation
-  );
 
   return (
     <section className="panel" aria-labelledby="source-heading">
@@ -181,8 +175,6 @@ export default function SourcePanel({ state, dispatch, setCrop }: SourcePanelPro
               onChange={setCrop}
               imageWidth={source.naturalWidth}
               imageHeight={source.naturalHeight}
-              aspect={aspect}
-              lockAspect={!state.mosaic.linkAspect}
             />
           </div>
 

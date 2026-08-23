@@ -1,4 +1,4 @@
-import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { clampCrop } from '../lego/frame';
 import { cropAspect, withAspect } from '../state/useMosaicStore';
 import type { CropRect } from '../lego/types';
@@ -23,14 +23,6 @@ export interface CropOverlayProps {
   /** Source dimensions, needed to reason about the physical aspect. */
   imageWidth: number;
   imageHeight: number;
-  /** Physical width / height the crop must keep while `lockAspect` holds. */
-  aspect: number;
-  /**
-   * Whether the grid's proportions constrain the crop. False when the crop is
-   * the master and the brick counts follow it, which is the default — then a
-   * drag is free in both axes and edge handles appear.
-   */
-  lockAspect: boolean;
 }
 
 const MIN_SPAN = 0.02;
@@ -38,18 +30,16 @@ const MIN_SPAN = 0.02;
 /**
  * Draggable, resizable crop rectangle.
  *
- * Corner and edge drags anchor the opposite side, which is what makes the
- * interaction feel predictable. When `lockAspect` is set, resizing has only one
- * free dimension — the other follows the mosaic's *physical* proportions, and
- * the edge handles are withdrawn because they have nothing left to say.
+ * The crop is always the master: it can be dragged to any shape, corner or
+ * edge, and the brick counts follow it (DESIGN.md §9.3). Corner and edge
+ * drags anchor the opposite side, which is what makes the interaction feel
+ * predictable.
  */
 export default function CropOverlay({
   crop,
   onChange,
   imageWidth,
   imageHeight,
-  aspect,
-  lockAspect,
 }: CropOverlayProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{
@@ -60,20 +50,11 @@ export default function CropOverlay({
   } | null>(null);
 
   /**
-   * Zoom keeps whichever aspect is currently authoritative: the grid's when
-   * locked, otherwise the crop's own, so scrolling never quietly reshapes a
+   * Zoom keeps the crop's own aspect, so scrolling never quietly reshapes a
    * frame the user placed by hand.
    */
-  const shape = useCallback(
-    (next: CropRect) =>
-      withAspect(
-        next,
-        imageWidth,
-        imageHeight,
-        lockAspect ? aspect : cropAspect(crop, imageWidth, imageHeight)
-      ),
-    [imageWidth, imageHeight, aspect, lockAspect, crop]
-  );
+  const shape = (next: CropRect) =>
+    withAspect(next, imageWidth, imageHeight, cropAspect(crop, imageWidth, imageHeight));
 
   const onPointerDown = (handle: Handle | 'move') => (event: ReactPointerEvent) => {
     event.preventDefault();
@@ -115,20 +96,12 @@ export default function CropOverlay({
     const anchorX = left ? start.x + start.w : start.x;
     const anchorY = up ? start.y + start.h : start.y;
 
-    let w = movesX(handle)
+    const w = movesX(handle)
       ? Math.max(MIN_SPAN, left ? start.w - dx : start.w + dx)
       : start.w;
-    let h = movesY(handle)
+    const h = movesY(handle)
       ? Math.max(MIN_SPAN, up ? start.h - dy : start.h + dy)
       : start.h;
-
-    if (lockAspect) {
-      // One free dimension only: take the width from the pointer and derive the
-      // height, so the aspect cannot drift over a long drag.
-      const sized = withAspect({ x: 0, y: 0, w, h }, imageWidth, imageHeight, aspect);
-      w = sized.w;
-      h = sized.h;
-    }
 
     onChange(
       clampCrop({ x: left ? anchorX - w : anchorX, y: up ? anchorY - h : anchorY, w, h })
@@ -216,7 +189,7 @@ export default function CropOverlay({
         onPointerDown={onPointerDown('move')}
         onKeyDown={onKeyDown}
       >
-        {(lockAspect ? CORNERS : [...CORNERS, ...EDGES]).map((handle) => (
+        {[...CORNERS, ...EDGES].map((handle) => (
           <span
             key={handle}
             className={`crop-handle crop-handle--${handle}${

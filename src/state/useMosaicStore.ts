@@ -79,16 +79,6 @@ export interface MosaicSettings {
   orientation: Orientation;
   cols: number;
   rows: number;
-  /**
-   * Which side of the crop/grid coupling is the master.
-   *
-   * The crop's physical aspect must always equal the mosaic's, or the picture
-   * comes out stretched (DESIGN.md §2.4a). That is not negotiable; what is
-   * negotiable is which one gives way. When true the crop leads — drag it to
-   * any shape and the brick counts follow. When false the grid leads — set the
-   * counts and the crop is reshaped to match.
-   */
-  linkAspect: boolean;
 }
 
 export interface QuantizeSettings {
@@ -148,7 +138,7 @@ export function initialState(): MosaicState {
     projectName: null,
     crop: { x: 0, y: 0, w: 1, h: 1 },
     transform: IDENTITY_TRANSFORM,
-    mosaic: { orientation: 'pips-out', cols: 48, rows: 48, linkAspect: true },
+    mosaic: { orientation: 'pips-out', cols: 48, rows: 48 },
     adjust: NO_ADJUSTMENTS,
     quantizeSettings: {
       dither: 'none',
@@ -208,8 +198,8 @@ export function gridForAspect(
 
 /**
  * Reshape a crop to a target physical aspect, keeping its centre and staying
- * inside the image. Used when the grid leads (`linkAspect` false), and to
- * repair the crop when a derived brick count hits a limit and clamps.
+ * inside the image. Used by the _Fit_ button, and to repair the crop when a
+ * derived brick count hits a limit and clamps.
  */
 export function withAspect(
   crop: CropRect,
@@ -273,29 +263,20 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
       };
       const { naturalWidth: w, naturalHeight: h } = action.source;
 
-      if (state.mosaic.linkAspect) {
-        // The crop leads, so start from the whole photo and let the brick
-        // counts take its shape. A landscape photo should open as a landscape
-        // mosaic; forcing it into the previous grid's proportions is what made
-        // every mosaic square regardless of its subject.
-        next.crop = { x: 0, y: 0, w: 1, h: 1 };
-        next.mosaic = {
-          ...state.mosaic,
-          ...gridForAspect(w / h, state.mosaic.orientation, {
-            cols: state.mosaic.cols,
-          }),
-        };
-        // Rounding to whole bricks moves the aspect slightly; the crop has to
-        // follow exactly or the picture stretches.
-        next.crop = refit(next);
-        return next;
-      }
-
-      next.crop = centerCropForAspect(
-        w,
-        h,
-        cropAspectFor(state.mosaic.cols, state.mosaic.rows, state.mosaic.orientation)
-      );
+      // The crop leads, so start from the whole photo and let the brick
+      // counts take its shape. A landscape photo should open as a landscape
+      // mosaic; forcing it into the previous grid's proportions is what made
+      // every mosaic square regardless of its subject.
+      next.crop = { x: 0, y: 0, w: 1, h: 1 };
+      next.mosaic = {
+        ...state.mosaic,
+        ...gridForAspect(w / h, state.mosaic.orientation, {
+          cols: state.mosaic.cols,
+        }),
+      };
+      // Rounding to whole bricks moves the aspect slightly; the crop has to
+      // follow exactly or the picture stretches.
+      next.crop = refit(next);
       return next;
     }
 
@@ -308,10 +289,6 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
     case 'setCrop': {
       const crop = clampCrop(action.crop);
       if (!state.source) return { ...state, crop };
-      // Grid leads: the crop is reshaped to it. The overlay already holds this
-      // shape while dragging, but enforcing it here means the invariant does
-      // not depend on the UI being the only caller.
-      if (!state.mosaic.linkAspect) return { ...state, crop: refit(state, crop) };
 
       // The crop leads: reshaping it re-proportions the grid. Width in bricks
       // is what the user set explicitly, so that is what is held.
@@ -379,9 +356,9 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
         };
       }
 
-      // When the crop leads, the *other* dimension follows it. Whichever count
-      // the user just moved is the one held fixed.
-      if (state.mosaic.linkAspect && state.source) {
+      // The crop always leads: the *other* dimension follows it. Whichever
+      // count the user just moved is the one held fixed.
+      if (state.source) {
         const aspect = cropAspect(
           state.crop,
           state.source.naturalWidth,

@@ -58,7 +58,7 @@ export interface ProjectFile {
   source?: ProjectSource;
   crop: CropRect;
   transform: Transform;
-  mosaic: { orientation: Orientation; cols: number; rows: number; linkAspect: boolean };
+  mosaic: { orientation: Orientation; cols: number; rows: number };
   adjust: Adjustments;
   quantize: {
     dither: DitherMode;
