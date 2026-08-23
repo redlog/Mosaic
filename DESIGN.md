@@ -1,7 +1,7 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** design approved; Milestone 1 complete (Phases 0-4: toolchain, domain core,
-image pipeline, tilers, exports). Rendering and UI next.
+**Status:** design approved; Phases 0-5 complete (toolchain, domain core, image pipeline,
+tilers, exports, renderer). UI next.
 **Version:** 1.0 (2026-08-23)
 
 ---
@@ -176,6 +176,7 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  └─ rng.ts                 seeded PRNG (mulberry32)
    ├─ browser/                  ← platform adapters; the only DOM-dependent code
    │  ├─ decode.ts              File → pixels
+   │  ├─ render-canvas.ts       canvas ownership for the renderer
    │  └─ download.ts            Blob → the user's disk
    ├─ worker/
    │  └─ mosaic.worker.ts
@@ -626,7 +627,20 @@ build guide notes will state:
 
 ## 8. Rendering
 
-`render(tiling, palette, opts) → HTMLCanvasElement`
+`drawMosaic(ctx, tiling, palette, opts) → RenderGeometry`
+
+The renderer draws to a **context**, never to a canvas it owns. That keeps it inside
+`src/lego/` without breaking the DOM-free rule, and lets the tests drive it with a
+recording stub — so claims like "clean mode draws no studs" and "brick rectangles
+partition the canvas exactly" are assertions rather than eyeballing.
+`src/browser/render-canvas.ts` supplies a real canvas and the PNG blob.
+
+Cell _edges_ are snapped to whole pixels rather than cell _sizes_ being rounded. A wall
+cell is 28.8px tall at the default zoom, so rounding the size would drift a pixel every
+few courses and open hairline gaps. And the brick body is always filled as a plain
+rectangle — filling a rounded path leaves the background showing through as white
+pinholes wherever four brick corners meet, which on a mosaic is everywhere. The rounding
+is stroked inside the filled body instead.
 
 ```ts
 interface RenderOptions {

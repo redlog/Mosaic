@@ -16,7 +16,7 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** Phases 0-4 complete. Start at Phase 5.
+**Current status:** Phases 0-5 complete. Start at Phase 6.
 
 ---
 
@@ -287,17 +287,40 @@ imported it yet, so the move was free.
 
 ---
 
-## Phase 5 — Rendering
+## Phase 5 — Rendering ✅
 
-- [ ] `src/lego/render.ts` — `render(tiling, palette, opts) → canvas`
-- [ ] Cell pixel size honors the 5:6 ratio in pips-up
-- [ ] Pips-out build view: rounded brick bodies, stud circles with highlight/shadow arcs
-- [ ] Pips-up build view: flat faces, top highlight, bottom shadow, vertical seam lines
-- [ ] Clean view for both: flat fill, no seams, no studs
-- [ ] Padding, background, and 1× / 2× / 4× scale
-- [ ] `toBlob('image/png')` export
-- [ ] Tests: output canvas dimensions are exact for both orientations and all scales;
-      a solid single-color mosaic renders that color at sampled interior points
+- [x] `src/lego/render.ts` — `drawMosaic(ctx, tiling, colors, opts)` and `renderGeometry()`
+- [x] `src/browser/render-canvas.ts` — `renderToCanvas`, `renderInto`, `renderToBlob`
+- [x] Cell pixel size honours the 5:6 ratio in pips-up
+- [x] Pips-out build view: brick bodies, outlines, stud circles with highlight/shadow arcs
+- [x] Pips-up build view: flat faces, top highlight, bottom shadow, vertical seam lines
+- [x] Clean view for both: flat fill, no seams, no studs
+- [x] Padding, background, and arbitrary scale
+- [x] `toBlob('image/png')` export, via `convertToBlob` on `OffscreenCanvas`
+- [x] Tests: exact canvas dimensions in both orientations and all scales; brick
+      rectangles partition the canvas with no gaps or overlaps
+
+> **`drawMosaic` takes a context, never a canvas.** That keeps the drawing logic inside
+> `src/lego/` without breaking the DOM-free rule, and makes it testable against a
+> recording stub — which is how "clean mode draws no studs", "a wall never draws studs"
+> and "bricks tile the canvas exactly" became direct assertions rather than eyeballing.
+> `Ctx2D` is a structural subset that `CanvasRenderingContext2D` satisfies for free.
+
+> **Cell _edges_ are snapped to whole pixels, not cell sizes.** A wall cell is 28.8px
+> tall at the default zoom; rounding the size would drift a pixel every few courses and
+> open hairline gaps. Snapping shared edges keeps the tiling exact and the aspect right.
+
+> **A bug the unit tests missed, and how.** Filling a _rounded_ path for the brick body
+> left the background showing through as white pinholes wherever four brick corners meet
+> — everywhere, on a mosaic. The coverage test existed but only ran in clean mode, which
+> draws plain rectangles, so it never saw it. Caught by rendering in a real browser and
+> looking at a magnified crop. The body is now always a full rectangle with the rounding
+> stroked _inside_ it, and the coverage test runs all four orientation/mode combinations.
+
+**Verified in a real browser**, not only against the stub: the page renders through
+headless Chromium with zero console errors, and the four views were inspected at 4x
+magnification. Flat comes out 640×640 and the wall 640×765 for the same 48×48 grid —
+the extra height is the real 1.2× cell, not a stretch.
 
 ---
 
