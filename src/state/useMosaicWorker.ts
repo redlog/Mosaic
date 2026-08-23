@@ -5,7 +5,7 @@
  * any environment without module workers, and it runs the same `build.ts` code
  * the worker does, so results cannot diverge.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { buildFromCells, buildFromGrid, type BuildSettings } from '../lego/build';
 import type { DoneMessage, WorkerRequest, WorkerResponse } from '../worker/mosaic.worker';
 import type { CellBuffer, Grid, Tiling } from '../lego/types';
@@ -26,7 +26,24 @@ export interface PipelineStatus {
   progress: number | null;
   /** False when the browser gave us no worker and we are blocking the UI. */
   usingWorker: boolean;
+  /**
+   * Settings have changed since the displayed result was built, and no build is
+   * coming on its own. Only possible with auto-rebuild off.
+   */
+  stale: boolean;
+  /** Build now, whatever the auto-rebuild setting says. */
+  rebuild: () => void;
 }
+
+/**
+ * How long to wait for the input to settle before starting a build.
+ *
+ * A slider drag fires a change per pixel of travel. Each one used to post a
+ * request, and each request cost a full tile. Coalescing them costs a delay
+ * short enough to read as instant on a discrete click, yet long enough that a
+ * continuous drag posts once at the end rather than forty times along the way.
+ */
+export const SETTLE_MS = 160;
 
 /** Either a fresh cell buffer to quantize, or a grid restored from a project. */
 export type PipelineSource =
@@ -45,19 +62,52 @@ function createWorker(): Worker | null {
   }
 }
 
+type Requested = { source: PipelineSource; settings: BuildSettings } | null;
+
 export function useMosaicPipeline(
   source: PipelineSource,
-  settings: BuildSettings
+  settings: BuildSettings,
+  auto = true
 ): PipelineStatus {
   const workerRef = useRef<Worker | null>(null);
   const generation = useRef(0);
-  const [status, setStatus] = useState<PipelineStatus>({
+  const [status, setStatus] = useState<Omit<PipelineStatus, 'stale' | 'rebuild'>>({
     result: null,
     error: null,
     busy: false,
     progress: null,
     usingWorker: true,
   });
+
+  // Settings are compared by value; a new object each render must not re-run
+  // a two-second tile.
+  const settingsKey = useMemo(() => JSON.stringify(settings), [settings]);
+
+  // What the worker was last asked to build. Separating this from the live
+  // inputs is what lets the request be delayed, skipped, or fired on demand.
+  const [requested, setRequested] = useState<Requested>(null);
+  const live = useRef({ source, settings, key: settingsKey });
+  live.current = { source, settings, key: settingsKey };
+
+  // Mirrors `requested` without re-triggering effects, so the "have the inputs
+  // moved on?" test can be made anywhere without becoming a dependency.
+  const built = useRef<{ source: PipelineSource; key: string } | null>(null);
+
+  const rebuild = useCallback(() => {
+    const { source: src, settings: cfg, key } = live.current;
+    built.current = { source: src, key };
+    setRequested({ source: src, settings: cfg });
+  }, []);
+
+  /**
+   * Staleness is derived, never stored. Storing it meant the auto-rebuild
+   * toggle could set it by itself, so turning auto off offered to rebuild a
+   * mosaic that was already current.
+   */
+  const stale =
+    !auto &&
+    built.current !== null &&
+    (built.current.source !== source || built.current.key !== settingsKey);
 
   // One worker for the life of the component; requests are serialized onto it.
   useEffect(() => {
@@ -70,15 +120,40 @@ export function useMosaicPipeline(
     };
   }, []);
 
-  // Settings are compared by value; a new object each render must not re-run
-  // a two-second tile.
-  const settingsKey = useMemo(() => JSON.stringify(settings), [settings]);
-
+  /**
+   * Decide when a build is wanted. Never builds inline — it either schedules
+   * one after the input settles, or leaves the result stale and waits to be
+   * asked.
+   */
   useEffect(() => {
     if (source.kind === 'none') {
+      built.current = null;
+      setRequested(null);
+      return;
+    }
+
+    const last = built.current;
+    const first = last === null;
+    const changed = last === null || last.source !== source || last.key !== settingsKey;
+
+    // Toggling auto is not itself a change; without this, flipping it on would
+    // spend a whole build reproducing the mosaic already on screen.
+    if (!changed) return;
+
+    // The first build always runs: auto-rebuild off should mean "stop
+    // recomputing while I fiddle", not "show me nothing until I click".
+    if (!auto && !first) return;
+
+    const timer = setTimeout(rebuild, SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [source, settingsKey, auto, rebuild]);
+
+  useEffect(() => {
+    if (!requested || requested.source.kind === 'none') {
       setStatus((s) => ({ ...s, result: null, busy: false, progress: null }));
       return;
     }
+    const { source, settings } = requested;
 
     const id = ++generation.current;
     const worker = workerRef.current;
@@ -183,8 +258,7 @@ export function useMosaicPipeline(
     ]);
 
     return () => worker.removeEventListener('message', onMessage);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [source, settingsKey]);
+  }, [requested]);
 
-  return status;
+  return useMemo(() => ({ ...status, stale, rebuild }), [status, stale, rebuild]);
 }

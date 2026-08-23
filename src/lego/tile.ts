@@ -21,6 +21,8 @@ export interface TileOptions {
   /** Pips-up only. */
   staggerLookback?: readonly number[];
   onProgress?: (fraction: number) => void;
+  /** Pips-out only: abandon the restart search early. See `FlatTileOptions`. */
+  shouldAbort?: () => boolean;
 }
 
 export function tile(
@@ -39,6 +41,7 @@ export function tile(
     if (options.strict !== undefined) flat.strict = options.strict;
     if (options.colors) flat.colors = options.colors;
     if (options.onProgress) flat.onProgress = options.onProgress;
+    if (options.shouldAbort) flat.shouldAbort = options.shouldAbort;
     return tileFlat(grid, flat);
   }
 

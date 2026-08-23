@@ -121,6 +121,13 @@ export interface MosaicState {
   quantizeSettings: QuantizeSettings;
   tiler: TilerSettings;
   view: ViewSettings;
+  /**
+   * Rebuild automatically as settings change. Off turns the app into an
+   * explicit "change what you like, then press Rebuild" loop, which is worth
+   * having at grid sizes where even a single tile takes a noticeable moment.
+   * A UI preference, deliberately not part of the saved project.
+   */
+  autoRebuild: boolean;
   error: string | null;
 }
 
@@ -148,6 +155,7 @@ export function initialState(): MosaicState {
       seed: 1,
     },
     view: { mode: 'build', pxPerStud: 14 },
+    autoRebuild: true,
     error: null,
   };
 }
@@ -231,6 +239,7 @@ export type Action =
   | { type: 'setColors'; keys: string[] }
   | { type: 'toggleShape'; designId: string }
   | { type: 'randomizeSeed' }
+  | { type: 'setAutoRebuild'; auto: boolean }
   | { type: 'setError'; error: string | null }
   | { type: 'loadProject'; state: MosaicState }
   | { type: 'replace'; state: MosaicState };
@@ -280,8 +289,11 @@ export function reducer(state: MosaicState, action: Action): MosaicState {
       return next;
     }
 
+    case 'setAutoRebuild':
+      return { ...state, autoRebuild: action.auto };
+
     case 'clearSource':
-      return { ...initialState(), view: state.view };
+      return { ...initialState(), view: state.view, autoRebuild: state.autoRebuild };
 
     case 'setCrop': {
       const crop = clampCrop(action.crop);
@@ -532,7 +544,7 @@ export function useMosaicStore() {
     [mosaic.orientation, activeColors, quantizeSettings, tiler]
   );
 
-  const pipeline = useMosaicPipeline(pipelineSource, buildSettings);
+  const pipeline = useMosaicPipeline(pipelineSource, buildSettings, state.autoRebuild);
 
   const derived = useMemo<DerivedMosaic>(() => {
     const size = finishedSize(mosaic.cols, mosaic.rows, mosaic.orientation);
@@ -592,6 +604,8 @@ export function useMosaicStore() {
     busy: pipeline.busy,
     progress: pipeline.progress,
     usingWorker: pipeline.usingWorker,
+    stale: pipeline.stale,
+    rebuild: pipeline.rebuild,
     setCrop,
   };
 }

@@ -5,6 +5,11 @@ import type { TilerWeights } from '../lego/types';
 export interface AlgorithmPanelProps {
   state: MosaicState;
   dispatch: (action: Action) => void;
+  /** True while the worker is building. */
+  busy: boolean;
+  /** True when settings have moved on from the mosaic on screen. */
+  stale: boolean;
+  rebuild: () => void;
 }
 
 const WEIGHTS: Array<{ key: keyof TilerWeights; label: string; hint: string }> = [
@@ -13,7 +18,13 @@ const WEIGHTS: Array<{ key: keyof TilerWeights; label: string; hint: string }> =
   { key: 'seam', label: 'Stagger seams', hint: 'cost of four bricks meeting at a point' },
 ];
 
-export default function AlgorithmPanel({ state, dispatch }: AlgorithmPanelProps) {
+export default function AlgorithmPanel({
+  state,
+  dispatch,
+  busy,
+  stale,
+  rebuild,
+}: AlgorithmPanelProps) {
   const shapes = availableShapesFor(state.mosaic.orientation);
   const inventory = new Set(state.tiler.inventory);
   const wall = state.mosaic.orientation === 'pips-up';
@@ -21,6 +32,26 @@ export default function AlgorithmPanel({ state, dispatch }: AlgorithmPanelProps)
   return (
     <section className="panel" aria-labelledby="algo-heading">
       <h2 id="algo-heading">Bricks</h2>
+
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={state.autoRebuild}
+          onChange={(e) => dispatch({ type: 'setAutoRebuild', auto: e.target.checked })}
+        />
+        Rebuild automatically
+      </label>
+
+      {!state.autoRebuild && (
+        <div className="row">
+          <button type="button" onClick={rebuild} disabled={busy || !stale}>
+            {busy ? 'Rebuilding…' : stale ? 'Rebuild' : 'Up to date'}
+          </button>
+          {stale && !busy && (
+            <span className="muted small">Settings have changed since this mosaic.</span>
+          )}
+        </div>
+      )}
 
       <ul className="shapes">
         {shapes.map((shape) => {

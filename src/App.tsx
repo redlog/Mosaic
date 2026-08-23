@@ -36,8 +36,17 @@ function useNarrow(): boolean {
 }
 
 export default function App() {
-  const { state, dispatch, derived, busy, progress, usingWorker, setCrop } =
-    useMosaicStore();
+  const {
+    state,
+    dispatch,
+    derived,
+    busy,
+    progress,
+    usingWorker,
+    stale,
+    rebuild,
+    setCrop,
+  } = useMosaicStore();
   const narrow = useNarrow();
   const [tab, setTab] = useState<Tab>('source');
 
@@ -47,7 +56,13 @@ export default function App() {
       <MosaicSettings state={state} dispatch={dispatch} derived={derived} />
       <AdjustPanel state={state} dispatch={dispatch} derived={derived} />
       <PalettePanel state={state} dispatch={dispatch} derived={derived} />
-      <AlgorithmPanel state={state} dispatch={dispatch} />
+      <AlgorithmPanel
+        state={state}
+        dispatch={dispatch}
+        busy={busy}
+        stale={stale}
+        rebuild={rebuild}
+      />
     </>
   );
 
@@ -121,7 +136,13 @@ export default function App() {
                 <MosaicSettings state={state} dispatch={dispatch} derived={derived} />
                 <AdjustPanel state={state} dispatch={dispatch} derived={derived} />
                 <PalettePanel state={state} dispatch={dispatch} derived={derived} />
-                <AlgorithmPanel state={state} dispatch={dispatch} />
+                <AlgorithmPanel
+                  state={state}
+                  dispatch={dispatch}
+                  busy={busy}
+                  stale={stale}
+                  rebuild={rebuild}
+                />
               </>
             )}
             {tab === 'preview' && preview}

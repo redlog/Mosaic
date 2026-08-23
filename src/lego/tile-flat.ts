@@ -38,6 +38,16 @@ export interface FlatTileOptions {
   /** Required when `strict`; indexed by the grid's color indices. */
   colors?: readonly LegoColor[];
   onProgress?: (fraction: number) => void;
+  /**
+   * Consulted once per restart. Returning true stops the search and returns the
+   * best tiling found so far.
+   *
+   * This exists because the caller's answer can stop being wanted while the
+   * search is still running — a newer request arrived, and every further
+   * restart refines a result nobody will ever see. Restarts are independent, so
+   * between two of them is a safe place to give up.
+   */
+  shouldAbort?: () => boolean;
 }
 
 export const DEFAULT_RESTARTS = 200;
@@ -185,6 +195,7 @@ export function tileFlat(grid: Grid, options: FlatTileOptions): Tiling {
 
     options.onProgress?.((trial + 1) / maxTrials);
     if (performance.now() - started > budgetMs) break;
+    if (options.shouldAbort?.()) break;
   }
 
   const placements = best ?? [];

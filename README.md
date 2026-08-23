@@ -56,6 +56,22 @@ spends its budget on randomized restarts, and at 256² the 1.5 s budget cuts it 
 the 200 requested. All of it runs in a worker, so the interface stays responsive: a
 click during a 160×160 tile completes in ~150 ms.
 
+**One change, one build.** Dragging a slider used to post a request per tick, and a
+worker's message handler runs to completion, so every one of them got tiled in full
+before the mosaic you were actually waiting for appeared. Requests are now debounced,
+bursts coalesce to the newest in the worker, and a build already running is abandoned
+between restarts when something newer arrives. Measured over the same twenty-tick drag:
+
+| Grid | Builds run | Settled after last input |
+| ---- | ---------- | ------------------------ |
+| 64²  | 20 → 1     | 2.6 s → 0.6 s            |
+| 128² | 20 → 1     | 12.9 s → 1.3 s           |
+| 192² | 20 → 1     | 28.0 s → 2.2 s           |
+
+For grids large enough that even one build is a wait, **Rebuild automatically** can be
+turned off in the Bricks panel: settings then accumulate and nothing recomputes until
+you press _Rebuild_. The first build after loading a photo always runs regardless.
+
 ### Projects
 
 A project is one JSON file. It always stores the quantized grid — run-length encoded, so

@@ -45,6 +45,11 @@ export interface BuildResult {
 
 export type BuildPhase = 'quantize' | 'tile';
 export type ProgressFn = (phase: BuildPhase, fraction: number) => void;
+/**
+ * Consulted during the tiling search; true abandons it and returns the best
+ * result so far. Lets a caller stop paying for an answer it no longer wants.
+ */
+export type AbortFn = () => boolean;
 
 function resolve(keys: readonly string[]): LegoColor[] {
   const colors = enabledColors(palette, keys);
@@ -58,7 +63,8 @@ function resolve(keys: readonly string[]): LegoColor[] {
 export function buildFromCells(
   cells: CellBuffer,
   settings: BuildSettings,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
+  shouldAbort?: AbortFn
 ): BuildResult {
   onProgress?.('quantize', 0);
   const quantized = quantize(cells, resolve(settings.colorKeys), {
@@ -69,7 +75,7 @@ export function buildFromCells(
   onProgress?.('quantize', 1);
 
   return {
-    ...tileGrid(quantized.grid, quantized.colors, settings, onProgress),
+    ...tileGrid(quantized.grid, quantized.colors, settings, onProgress, shouldAbort),
     counts: quantized.counts,
   };
 }
@@ -82,7 +88,8 @@ export function buildFromGrid(
   grid: Grid,
   colorKeys: readonly string[],
   settings: BuildSettings,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
+  shouldAbort?: AbortFn
 ): BuildResult {
   const colors = colorKeys.map((key) => {
     const color = palette.byKey.get(key);
@@ -95,14 +102,15 @@ export function buildFromGrid(
     if (index >= 0 && index < counts.length) counts[index]!++;
   }
 
-  return { ...tileGrid(grid, colors, settings, onProgress), counts };
+  return { ...tileGrid(grid, colors, settings, onProgress, shouldAbort), counts };
 }
 
 function tileGrid(
   grid: Grid,
   colors: readonly LegoColor[],
   settings: BuildSettings,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
+  shouldAbort?: AbortFn
 ): Omit<BuildResult, 'counts'> {
   const tiling = tile(grid, settings.orientation, {
     inventory: settings.inventory,
@@ -113,6 +121,7 @@ function tileGrid(
     strict: settings.strict,
     colors,
     ...(onProgress ? { onProgress: (f: number) => onProgress('tile', f) } : {}),
+    ...(shouldAbort ? { shouldAbort } : {}),
   });
 
   return { grid, colorKeys: colors.map((c) => c.key), tiling };

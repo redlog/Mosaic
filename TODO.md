@@ -16,8 +16,8 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** all nine phases complete, plus Phase 11 (the Pick a Brick export)
-and Phase 12 (free-form framing) added afterwards. Two items are prepared rather than
+**Current status:** all nine phases complete, plus Phase 11 (the Pick a Brick export),
+Phase 12 (free-form framing) and Phase 13 (rebuild coalescing) added afterwards. Two items are prepared rather than
 done and are marked `[~]` in Phase 9: cross-browser verification on Firefox/Safari, and
 the Pages deployment itself. Phase 11 needs real element-ID data loaded, which is data
 entry rather than code.
@@ -554,6 +554,39 @@ Reported after v1: the crop box always came out square. See DESIGN.md §9.3.
 > to spend _more_ courses on the same framing. It spends fewer — courses are 1.2× taller,
 > so the same picture needs 1/1.2 as many, and finishes at the same physical size. The
 > assertion that matters is the one on finished height, which held all along.
+
+---
+
+## Phase 13 — One change, one build
+
+Reported after v1: redrawing was sometimes very slow, and it felt like a previous change
+was still processing. It was. See DESIGN.md §12.1.
+
+- [x] `shouldAbort` on the flat tiler, checked between restarts — real cancellation,
+      not just discarding the answer afterwards
+- [x] Threaded through `build.ts` and `tile.ts` to the worker
+- [x] Worker records requests instead of building inline, so a burst collapses to the
+      newest; an abandoned build's result is dropped rather than published
+- [x] `SETTLE_MS` debounce in `useMosaicWorker` — the cheapest build is the one never
+      posted
+- [x] _Rebuild automatically_ toggle plus a _Rebuild_ button, with staleness derived
+      from the last requested inputs rather than stored
+- [x] Tests for the abort path: stops early, still returns a valid complete tiling,
+      always leaves one finished trial, changes nothing when it never fires
+- [x] Measured in Chromium before and after, same harness: 20 posted builds → 1
+
+> **The work was already off the main thread, which is exactly why this hid.** Nothing
+> was blocked and no frame was dropped; the worker was simply computing nineteen mosaics
+> nobody would ever see, in front of the one that mattered. A generation counter that
+> discards stale _results_ reads like cancellation and is not — discarding an answer
+> does not refund the time spent on it. Cancellation has to reach the loop.
+
+> Two things the measurement got wrong before it got them right, both mine. My first
+> harness patched `window.Worker` after app code had already run, so it counted zero
+> builds throughout. The second settled on "two identical samples" — which is also what
+> a build in progress looks like, since neither counter moves while it runs. Reading the
+> app's own tiling badge fixed it. The headline numbers only became trustworthy on the
+> third attempt.
 
 ---
 

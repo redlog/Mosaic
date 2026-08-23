@@ -219,6 +219,66 @@ describe('pips-out tiler', () => {
     });
     expect(avoidOnes.stats.ones).toBeLessThanOrEqual(neutral.stats.ones);
   });
+
+  /**
+   * The search can stop being wanted while it runs — the user moved a slider
+   * again. Without a way out, an obsolete tile still burns its whole budget
+   * before the one they are waiting for can start.
+   */
+  describe('shouldAbort', () => {
+    const g = grid(48, 48, (c, r) => (c * r) % 4);
+
+    it('stops the restart search early', () => {
+      const full = tileFlat(g, { inventory, seed: 1, restarts: 200 });
+      let calls = 0;
+      const aborted = tileFlat(g, {
+        inventory,
+        seed: 1,
+        restarts: 200,
+        shouldAbort: () => ++calls >= 3,
+      });
+      expect(calls).toBe(3);
+      expect(aborted.stats.trials).toBe(3);
+      expect(full.stats.trials).toBeGreaterThan(aborted.stats.trials);
+    });
+
+    it('still returns a valid, complete tiling', () => {
+      // Abandoning is not failing: whatever it hands back has to be buildable,
+      // because the caller may yet decide to keep it.
+      const aborted = tileFlat(g, {
+        inventory,
+        seed: 7,
+        restarts: 200,
+        shouldAbort: () => true,
+      });
+      expect(aborted.placements.length).toBeGreaterThan(0);
+      expect(validateTiling(aborted, { grid: g, inventory })).toEqual([]);
+    });
+
+    it('is never consulted before a first result exists', () => {
+      // Aborting on the very first call must still leave one completed trial,
+      // or there would be nothing to return.
+      const aborted = tileFlat(g, {
+        inventory,
+        seed: 2,
+        restarts: 200,
+        shouldAbort: () => true,
+      });
+      expect(aborted.stats.trials).toBe(1);
+    });
+
+    it('changes nothing when it never fires', () => {
+      const plain = tileFlat(g, { inventory, seed: 5, restarts: 40 });
+      const watched = tileFlat(g, {
+        inventory,
+        seed: 5,
+        restarts: 40,
+        shouldAbort: () => false,
+      });
+      expect(watched.stats.pieces).toBe(plain.stats.pieces);
+      expect(watched.stats.trials).toBe(plain.stats.trials);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # LEGO Mosaic Generator — Design Document
 
 **Status:** built. All nine phases complete, plus the Pick a Brick export (§11.3) and
-free-form framing (§9.3) added after v1; see TODO.md for the two Phase 9 items that are
+free-form framing (§9.3) and rebuild coalescing (§12.1) added after v1; see TODO.md for the two Phase 9 items that are
 prepared rather than performed (Firefox/Safari verification and the Pages deploy).
 **Version:** 1.0 (2026-08-23)
 
@@ -764,8 +764,8 @@ Below 900px the layout collapses to a single column with a tab bar:
   collapsed "uncommon" group.
 - Collapsed advanced section: the three objective weights, restart count, stagger
   lookback depth, and the seed with a _randomize_ button.
-- _Rebuild_ button, plus an auto-rebuild toggle. Quantization is always live and
-  debounced 300 ms; tiling auto-runs only below 96×96 to avoid constant recomputation.
+- _Rebuild automatically_ toggle at the top, with a _Rebuild_ button that appears when
+  it is off and enables itself only when something has actually changed (§12.2).
 
 **Export**
 
@@ -987,10 +987,58 @@ main ◀──{ type:'done', generation, grid, tiling, stats }──── worke
 
 - Typed arrays are **transferred**, not copied.
 - A monotonically increasing `generation` counter is attached to every request; results
-  whose generation is stale are discarded. This is the cancellation mechanism — simpler
-  and more robust than trying to abort work mid-flight.
+  whose generation is stale are discarded.
 - The tiler checks its time budget between restarts and reports progress, so a big grid
   produces a moving progress bar rather than a frozen tab.
+
+### 12.1 Never build what nobody is waiting for
+
+Discarding stale _results_ was originally the whole cancellation story, and it was not
+enough. Discarding a result does not refund the time spent computing it, and a worker's
+`onmessage` runs to completion, so requests that arrive during a build queue up behind
+it and each one still gets tiled in full. One slider drag posted twenty requests, and
+the app spent **12.9 s at 128×128 — 28 s at 192×192 — working through mosaics nobody
+would ever see** before showing the one the user was waiting for. The work was already
+off the main thread, so nothing was technically blocked; it was just wasted, serially,
+in front of the answer.
+
+Three mechanisms, at three different levels:
+
+1. **Debounce the request.** `SETTLE_MS` (160 ms) in `useMosaicWorker`. A drag fires a
+   change per pixel of travel, and the cheapest build is the one never posted. Short
+   enough to read as instant on a discrete click.
+2. **Coalesce in the worker.** `onmessage` only records the request and returns, so a
+   burst that gets through the debounce collapses to a single build of the newest.
+   Requests that never started are simply overwritten.
+3. **Abandon a build already running.** `shouldAbort`, checked between restarts of the
+   tiling search (§7.1). Without this, one in-flight build still burns its full 1.5 s
+   budget before the newest can begin. Restarts are independent, so between two of them
+   is a safe place to stop.
+
+The abandoned result is dropped rather than published: it is a real tiling but an
+under-refined one, and showing it would flash a visibly worse mosaic in the moment
+before the newest build lands.
+
+Measured over the same twenty-tick drag, before and after:
+
+| Grid    | Builds run | Settled after last input | Now   |
+| ------- | ---------- | ------------------------ | ----- |
+| 64×64   | 20 → 1     | 2.6 s                    | 0.6 s |
+| 128×128 | 20 → 1     | 12.9 s                   | 1.3 s |
+| 192×192 | 20 → 1     | 28.0 s                   | 2.2 s |
+
+### 12.2 Auto-rebuild
+
+Even one build per change is a noticeable pause on a large grid, so the rebuild can be
+put under manual control: **Rebuild automatically** off means settings accumulate and
+nothing recomputes until _Rebuild_ is pressed. The first build after loading an image
+always runs regardless — the setting means "stop recomputing while I fiddle", not "show
+me nothing until I click".
+
+Staleness is **derived**, never stored: `built.current` records the source and settings
+key of the last request, and stale is a comparison against the live ones. Storing it as
+state meant the toggle could set the flag by itself, so turning auto off offered to
+rebuild a mosaic that was already current.
 
 **Sizing.** 128 × 128 = 16k cells is comfortable. 256 × 256 = 65k cells is the practical
 ceiling for interactive use with restarts. A hard cap of 400 × 400 is enforced with a
