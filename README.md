@@ -15,7 +15,8 @@ restored as a single JSON file.
 - The image is downsampled, mapped to real LEGO colors, and — importantly — merged into
   the **largest legal bricks available**, so a flat region becomes a handful of 2×8s
   rather than hundreds of 1×1s. Cheaper, faster to build, stronger.
-- Export the preview PNG, a parts-list CSV, and a BrickLink Wanted List XML.
+- Export the preview PNG, a parts-list CSV, a BrickLink Wanted List XML, and a
+  Pick a Brick CSV that imports straight into lego.com.
 
 ## Status
 
@@ -25,10 +26,11 @@ restored as a single JSON file.
 orientation and size, and get a rendered brick preview, a parts list and downloadable
 exports, with the heavy work in a Web Worker and projects that save and reopen.
 
-Two things are prepared rather than finished, and are marked as such in
+Three things are prepared rather than finished, and are marked as such in
 [TODO.md](./TODO.md): Firefox and Safari are untested (only Chromium was available
-here), and the GitHub Pages workflow is committed but publishing needs Pages switched on
-for the repository.
+here); the GitHub Pages workflow is committed but publishing needs Pages switched on
+for the repository; and the Pick a Brick export ships with no element IDs loaded — see
+[below](#the-pick-a-brick-export), where not inventing them is the point.
 
 ```bash
 npm install && npm run dev
@@ -137,6 +139,50 @@ access, so it is unit-testable in Node and reusable from a CLI later.
 `src/browser/` holds the platform adapters — decoding a `File` into pixels, handing a
 Blob to the user's disk. These are the only modules that touch the DOM outside the UI
 itself; everything else that does belongs in `src/components/`.
+
+## The Pick a Brick export
+
+lego.com's Pick a Brick imports a two-column CSV:
+
+```csv
+elementId,quantity
+300321,18
+300121,999
+```
+
+**Element IDs, not design IDs.** A design ID names a _shape_: 3001 is the 2×4 brick in
+every color there is. An element ID names one specific _(shape, color)_ pair, which is
+what an order actually consists of. Pick a Brick keys on elements, and unlike the
+BrickLink XML there is no name column in the file for a human to sanity-check against.
+
+The two are not derivable from each other. Plenty of classic elements do read as the
+design ID with a LEGO color number stuck on the end — 3001 in Bright Red is 300121, 3003
+is 300321 — but modern parts get seven-digit sequential IDs that follow no pattern, so
+that convention is a coincidence to recognise, never a rule to apply. It is a lookup
+table.
+
+**So the shipped palette contains no element IDs at all**, and none were invented. The
+export machinery is complete and tested; the data slot is empty. Until you load a real
+table the button is disabled, the panel says so, and the file it would write is a bare
+header. Lots with no known element ID are dropped from the file and named in a warning
+rather than guessed at — the same posture as the BrickLink color IDs.
+
+To load a real table (Rebrickable's `elements.csv`, a BrickLink export, a hand-kept
+sheet):
+
+```bash
+npm run palette:elements -- elements.csv
+```
+
+Columns are matched loosely and case-insensitively: `element_id`, `part_num` (or
+`design_id`), and `color` — resolved against the palette key, the color name, or the
+BrickLink color ID, in that order. Rows naming a design or color the palette does not
+carry are reported and skipped, and nothing is written if the merged result would fail
+validation. The panel then reports coverage as _n of 334 brick-and-color pairs_.
+
+Quantities above 999 are split across repeated rows rather than clamped, since Pick a
+Brick caps a single order line and silently dropping bricks from an order that looked
+complete would be worse than a longer file.
 
 ## A note on the color data
 

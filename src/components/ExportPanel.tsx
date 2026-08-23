@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { toBricklinkXml, BRICKLINK_MIME } from '../lego/export-bricklink';
 import { toCsv, CSV_MIME } from '../lego/export-csv';
+import { toPickABrickCsv, PICKABRICK_MIME } from '../lego/export-pickabrick';
 import { renderGeometry } from '../lego/render';
 import { renderToBlob } from '../browser/render-canvas';
 import { downloadBlob, downloadText, exportFilename } from '../browser/download';
@@ -11,6 +12,7 @@ import {
   serializeProject,
 } from '../lego/project';
 import { fromProject, toProject } from '../state/project-io';
+import { elementCoverage } from '../lego/palette';
 import {
   palette,
   type Action,
@@ -20,6 +22,12 @@ import {
 
 /** Whether the bundled color table has been checked against a real catalog. */
 const PALETTE_VERIFIED = palette.provenance.verified;
+
+/**
+ * How many (color, brick) pairs carry an element ID. Resolved once — the
+ * palette does not change at runtime.
+ */
+const ELEMENTS = elementCoverage(palette.colors);
 
 export interface ExportPanelProps {
   state: MosaicState;
@@ -60,6 +68,7 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
   }
 
   const bricklink = bom ? toBricklinkXml(bom) : null;
+  const pickABrick = bom ? toPickABrickCsv(bom) : null;
 
   function saveProject() {
     if (!derived.grid) return;
@@ -128,6 +137,21 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
         </button>
         <button
           type="button"
+          disabled={!ready || pickABrick?.included.length === 0}
+          title="lego.com Pick a Brick — element IDs, not design IDs"
+          onClick={() =>
+            pickABrick &&
+            downloadText(
+              pickABrick.csv,
+              exportFilename(name, 'pick-a-brick', 'csv'),
+              PICKABRICK_MIME
+            )
+          }
+        >
+          Pick a Brick CSV
+        </button>
+        <button
+          type="button"
           disabled={!ready || bricklink?.included.length === 0}
           onClick={() =>
             bricklink &&
@@ -143,9 +167,31 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
       </div>
 
       <p className="muted small">
-        The XML uploads to BrickLink as a Wanted List, which prices and sources the whole
-        build in one step.
+        The BrickLink XML uploads as a Wanted List. The Pick a Brick CSV imports at
+        lego.com and is keyed by <strong>element ID</strong> — one specific brick in one
+        specific colour — which is a lookup, not something derivable from the design ID.
       </p>
+
+      {ELEMENTS.known === 0 ? (
+        <p className="note note--warn">
+          No element IDs are loaded, so the Pick a Brick export has nothing to write.
+          Element IDs are a lookup table — none were invented. Load one with{' '}
+          <code>npm run palette:elements -- elements.csv</code>.
+        </p>
+      ) : (
+        ELEMENTS.known < ELEMENTS.total && (
+          <p className="note">
+            Element IDs known for {ELEMENTS.known} of {ELEMENTS.total} brick-and-colour
+            pairs. Anything missing is left out of the Pick a Brick file rather than
+            guessed.
+          </p>
+        )
+      )}
+
+      {/* With no element table loaded at all, the note above already says this. */}
+      {ELEMENTS.known > 0 && pickABrick && pickABrick.warnings.length > 0 && (
+        <p className="note note--warn">{pickABrick.warnings.join(' ')}</p>
+      )}
 
       {bricklink && bricklink.warnings.length > 0 && (
         <p className="note note--warn">{bricklink.warnings.join(' ')}</p>

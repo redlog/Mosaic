@@ -176,6 +176,7 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  ├─ project.ts             JSON save/load, RLE, migrations
    │  ├─ export-csv.ts
    │  ├─ export-bricklink.ts
+   │  ├─ export-pickabrick.ts   lego.com Pick a Brick CSV (element IDs)
    │  └─ rng.ts                 seeded PRNG (mulberry32)
    ├─ browser/                  ← platform adapters; the only DOM-dependent code
    │  ├─ decode.ts              File → pixels
@@ -225,6 +226,7 @@ export interface LegoColor {
   blColorId: number; // BrickLink color ID, required for XML export
   ldrawId?: number;
   shapes: string[]; // design IDs this color is actually produced in
+  elements?: Record<string, string>; // design ID → LEGO element ID; see §11.3
 }
 
 /** Result of quantization: one palette index per cell, row-major. */
@@ -898,7 +900,41 @@ than no export. So every enabled color is checked for a numeric `blColorId` at p
 load; any color missing one is excluded from the XML and reported in the UI with the
 affected quantities, rather than being emitted with a guessed id.
 
-### 11.3 Mosaic PNG
+### 11.3 Pick a Brick CSV
+
+```csv
+elementId,quantity
+300321,18
+300121,999
+```
+
+Two columns, imported at lego.com. **Element IDs, not design IDs** — and the distinction
+is the whole design problem here.
+
+A design ID names a shape: 3001 is the 2×4 brick in every colour. An element ID names one
+_(shape, colour)_ pair, which is what an order consists of. The BrickLink XML expresses
+that pair as two fields, `ITEMID` + `COLOR`; Pick a Brick collapses it into a single
+number that has to be looked up.
+
+The temptation is to compute it. Many classic elements really do read as the design ID
+with a LEGO colour number concatenated — 3001 in Bright Red is 300121, 3003 is 300321 —
+and the two rows above are both of that form. But modern parts are assigned seven-digit
+sequential IDs with no relationship to their design ID, so the pattern is a coincidence
+that holds for a subset of old parts, not a rule. Deriving IDs would produce a file that
+imports cleanly and orders the wrong parts, and unlike the CSV parts list there is no
+name column for a human to catch it in.
+
+So `LegoColor.elements` is a lookup keyed by design ID, populated from real data or left
+empty. A lot with no entry is omitted and named in a warning, exactly as a colour with no
+`blColorId` is omitted from the Wanted List (§11.2). The bundled palette ships with the
+table empty rather than fabricated; `scripts/merge-elements.ts` loads a real one, and
+`elementCoverage()` drives a UI note reporting known pairs out of total.
+
+**Per-line cap:** Pick a Brick limits a single order line to 999. Quantities above that
+are split across repeated rows for the same element rather than clamped — a clamp would
+silently drop bricks from an order that looked complete.
+
+### 11.4 Mosaic PNG
 
 Build view or clean view, at 1× / 2× / 4×, via `canvas.toBlob('image/png')`.
 

@@ -16,9 +16,10 @@ Companion to [DESIGN.md](./DESIGN.md). Section references below (§n) point ther
 4. The pure domain logic lives in `src/lego/` and imports nothing from React. If a change
    needs the DOM, it probably belongs in `src/components/` instead.
 
-**Current status:** all nine phases complete. Two items are prepared rather than
-done and are marked `[~]` in Phase 9: cross-browser verification on Firefox/Safari, and
-the Pages deployment itself.
+**Current status:** all nine phases complete, plus Phase 11 (the Pick a Brick export)
+added afterwards. Two items are prepared rather than done and are marked `[~]` in
+Phase 9: cross-browser verification on Firefox/Safari, and the Pages deployment itself.
+Phase 11 needs real element-ID data loaded, which is data entry rather than code.
 
 ---
 
@@ -493,6 +494,32 @@ From DESIGN.md §16, in rough value-per-effort order:
 - [ ] Multi-baseplate segmentation with per-plate parts lists
 - [ ] Second-layer backing for tall pips-up walls
 - [ ] CLI over `src/lego/`
+
+---
+
+## Phase 11 — Pick a Brick export
+
+Added after v1, on request: a CSV importable at lego.com. See DESIGN.md §11.3.
+
+- [x] `elements?: Record<designId, elementId>` on the palette colors, validated on load;
+      `elementIdFor()` and `elementCoverage()` in `palette.ts`
+- [x] `BomLine.elementId` resolved when the parts list is built
+- [x] `export-pickabrick.ts` — two columns, omits unknown elements, splits quantities
+      over the 999-per-line cap instead of clamping them
+- [x] `scripts/merge-elements.ts` / `npm run palette:elements` to load a real table;
+      loose column matching, unknown designs and colors reported and skipped, refuses
+      to write a palette that fails validation
+- [x] Export button plus a coverage note in the panel
+- [x] 14 tests; verified in Chromium at zero, partial and full element coverage
+- [ ] **Load a real element table.** The shipped palette carries none.
+
+> **The one thing not done here is deliberate.** The user's own two example rows decode
+> as 3003 + colour 21 and 3001 + colour 21 — the classic designID-plus-LEGO-colour
+> convention — and it would have been easy to generate all 334 IDs that way. But modern
+> parts use seven-digit sequential IDs that follow no pattern, so that convention is a
+> coincidence that holds for some old parts, not a formula. Fabricated IDs would import
+> cleanly and order the wrong bricks, and the format has no name column to catch it by
+> eye. The machinery ships complete and the data slot ships empty, with the UI saying so.
 
 ---
 

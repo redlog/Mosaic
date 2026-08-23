@@ -48,6 +48,19 @@ export interface PaletteColorData {
    * not as a 2x8 — see DESIGN.md §5.2.
    */
   shapes: string[];
+  /**
+   * LEGO element IDs for this color, keyed by design ID.
+   *
+   * An element is a specific (design, color) pair, and its ID is what
+   * lego.com's Pick a Brick imports. It is a lookup, not a formula: many
+   * classic elements read as design ID + LEGO colour number concatenated
+   * (3001 in Bright Red is 300121), but modern parts get seven-digit
+   * sequential IDs instead, so the pattern cannot be relied on.
+   *
+   * Absent entries are omitted from the Pick a Brick export rather than
+   * derived, because a wrong element ID orders the wrong part.
+   */
+  elements?: Record<string, string>;
 }
 
 /** A palette entry after loading, with color spaces precomputed. */
@@ -188,5 +201,7 @@ export interface BomLine {
   colorKey: string;
   colorName: string;
   blColorId: number | null;
+  /** LEGO element ID for this exact (design, color) pair, if known. */
+  elementId: string | null;
   quantity: number;
 }

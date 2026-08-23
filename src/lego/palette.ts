@@ -86,6 +86,23 @@ export function validatePaletteFile(file: unknown): PaletteValidation {
       errors.push(`${label} \`blColorId\` must be an integer or null`);
     }
 
+    if (c.elements !== undefined) {
+      if (typeof c.elements !== 'object' || c.elements === null) {
+        errors.push(`${label} \`elements\` must be an object keyed by design ID`);
+      } else {
+        for (const [designId, elementId] of Object.entries(c.elements)) {
+          if (!hasShape(designId)) {
+            errors.push(`${label} has an element for unknown design ID "${designId}"`);
+          }
+          if (typeof elementId !== 'string' || !/^\d+$/.test(elementId)) {
+            errors.push(
+              `${label} element for ${designId} must be a digit string, got ${JSON.stringify(elementId)}`
+            );
+          }
+        }
+      }
+    }
+
     if (!Array.isArray(c.shapes) || c.shapes.length === 0) {
       errors.push(`${label} needs a non-empty \`shapes\` array`);
     } else {
@@ -183,6 +200,34 @@ export function unusableColors(
   inventory: readonly string[]
 ): LegoColor[] {
   return colors.filter((c) => legalShapes(c, inventory, true).length === 0);
+}
+
+/** The element ID for a (color, design) pair, or null when it is not known. */
+export function elementIdFor(
+  color: Pick<LegoColor, 'elements'>,
+  designId: string
+): string | null {
+  return color.elements?.[designId] ?? null;
+}
+
+/**
+ * How much of a palette carries element IDs, as a fraction of the
+ * (color, shape) pairs it claims to be available in. Drives the coverage note
+ * on the Pick a Brick export.
+ */
+export function elementCoverage(colors: readonly LegoColor[]): {
+  known: number;
+  total: number;
+} {
+  let known = 0;
+  let total = 0;
+  for (const color of colors) {
+    for (const designId of color.shapes) {
+      total++;
+      if (elementIdFor(color, designId)) known++;
+    }
+  }
+  return { known, total };
 }
 
 /** Colors that cannot be emitted into a BrickLink Wanted List. */

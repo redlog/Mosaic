@@ -4,7 +4,7 @@
     "source": "hand-curated fallback table",
     "generated": "2026-08-23",
     "verified": false,
-    "note": "UNVERIFIED. Hex values, BrickLink color IDs, and per-shape availability are a best-effort starting point compiled without access to a live catalog, not data checked against current production. Availability in particular is a coarse tier estimate rather than real per-part data. Correct this file directly, or regenerate it with scripts/build-palette.ts from an authoritative export; nothing in the code depends on these values."
+    "note": "UNVERIFIED. Hex values, BrickLink color IDs, and per-shape availability are a best-effort starting point compiled without access to a live catalog, not data checked against current production. Availability in particular is a coarse tier estimate rather than real per-part data. NO ELEMENT IDS ARE INCLUDED: an element ID identifies one specific (brick, color) pair and is a lookup rather than something derivable from the design ID, so none have been invented. Load a real table with scripts/merge-elements.ts to enable the Pick a Brick export. Correct this file directly, or regenerate it with scripts/build-palette.ts from an authoritative export; nothing in the code depends on these values."
   },
   "colors": [
     {
