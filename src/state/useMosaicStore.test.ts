@@ -91,10 +91,10 @@ describe('orientation', () => {
 
   /**
    * Switching to a wall must not distort: the same crop sampled on 5:6 cells
-   * comes out vertically stretched unless something gives. Which side gives is
-   * what `linkAspect` decides.
+   * comes out vertically stretched unless something gives. The crop always
+   * leads, so it's the row count that gives.
    */
-  it('recounts the courses rather than recropping, when the crop leads', () => {
+  it('recounts the courses rather than recropping', () => {
     const flat = loaded();
     const wall = reducer(flat, {
       type: 'patchMosaic',
@@ -114,42 +114,23 @@ describe('orientation', () => {
     expect(pixelAspect(wall.crop)).toBeCloseTo(after.widthMm / after.heightMm, 2);
   });
 
-  it('recrops instead, when the grid leads', () => {
-    const flat = reducer(loaded(), {
-      type: 'patchMosaic',
-      patch: { linkAspect: false },
-    });
-    const wall = reducer(flat, {
-      type: 'patchMosaic',
-      patch: { orientation: 'pips-up' },
-    });
-
-    // Brick counts are the user's here, so the crop is what narrows: the same
-    // grid on 5:6 cells needs a crop 5/6 as wide.
-    expect(wall.mosaic.rows).toBe(flat.mosaic.rows);
-    expect(wall.crop.w).toBeLessThan(flat.crop.w);
-    expect(pixelAspect(wall.crop)).toBeCloseTo(pixelAspect(flat.crop) * (5 / 6), 6);
-  });
-
   /**
-   * The one thing neither mode may ever do. A crop whose proportions differ
-   * from the finished mosaic's is a stretched picture, and it is silent — the
-   * render looks fine until you hold it up against the photo.
+   * The one thing this may never do. A crop whose proportions differ from the
+   * finished mosaic's is a stretched picture, and it is silent — the render
+   * looks fine until you hold it up against the photo.
    */
   it('keeps crop and mosaic proportions equal through every path', () => {
     const paths: Array<[string, MosaicState]> = [];
-    for (const linkAspect of [true, false]) {
-      let s = reducer(loaded(), { type: 'patchMosaic', patch: { linkAspect } });
-      paths.push([`load, link=${linkAspect}`, s]);
-      s = reducer(s, { type: 'setCrop', crop: { x: 0, y: 0.1, w: 0.9, h: 0.4 } });
-      paths.push([`crop, link=${linkAspect}`, s]);
-      s = reducer(s, { type: 'patchMosaic', patch: { cols: 120 } });
-      paths.push([`cols, link=${linkAspect}`, s]);
-      s = reducer(s, { type: 'patchMosaic', patch: { rows: 30 } });
-      paths.push([`rows, link=${linkAspect}`, s]);
-      s = reducer(s, { type: 'patchMosaic', patch: { orientation: 'pips-up' } });
-      paths.push([`wall, link=${linkAspect}`, s]);
-    }
+    let s = loaded();
+    paths.push(['load', s]);
+    s = reducer(s, { type: 'setCrop', crop: { x: 0, y: 0.1, w: 0.9, h: 0.4 } });
+    paths.push(['crop', s]);
+    s = reducer(s, { type: 'patchMosaic', patch: { cols: 120 } });
+    paths.push(['cols', s]);
+    s = reducer(s, { type: 'patchMosaic', patch: { rows: 30 } });
+    paths.push(['rows', s]);
+    s = reducer(s, { type: 'patchMosaic', patch: { orientation: 'pips-up' } });
+    paths.push(['wall', s]);
 
     for (const [label, s] of paths) {
       const built = finishedSize(s.mosaic.cols, s.mosaic.rows, s.mosaic.orientation);
@@ -165,7 +146,7 @@ describe('orientation', () => {
 
 describe('grid dimensions', () => {
   it('clamps to the supported range', () => {
-    const state = { ...loaded(), mosaic: { ...loaded().mosaic, linkAspect: false } };
+    const state = loaded();
     expect(reducer(state, { type: 'patchMosaic', patch: { cols: 5 } }).mosaic.cols).toBe(
       MIN_GRID_DIMENSION
     );
@@ -175,7 +156,7 @@ describe('grid dimensions', () => {
   });
 
   it('rounds fractional input', () => {
-    const state = { ...loaded(), mosaic: { ...loaded().mosaic, linkAspect: false } };
+    const state = loaded();
     expect(
       reducer(state, { type: 'patchMosaic', patch: { cols: 33.7 } }).mosaic.cols
     ).toBe(34);
@@ -183,7 +164,6 @@ describe('grid dimensions', () => {
 
   it('derives the other dimension from the crop', () => {
     const state = loaded();
-    expect(state.mosaic.linkAspect).toBe(true);
 
     // A full-frame crop of the 4:3 fixture: 64 columns wants 48 rows.
     expect(reducer(state, { type: 'patchMosaic', patch: { cols: 64 } }).mosaic.rows).toBe(
@@ -229,27 +209,6 @@ describe('grid dimensions', () => {
     expect(tall.crop.w).toBeCloseTo(0.25, 2);
   });
 
-  it('leaves the grid alone when the crop is dragged and the grid leads', () => {
-    const locked = reducer(loaded(), {
-      type: 'patchMosaic',
-      patch: { linkAspect: false },
-    });
-    const dragged = reducer(locked, {
-      type: 'setCrop',
-      crop: { x: 0.3, y: 0, w: 0.25, h: 1 },
-    });
-    expect(dragged.mosaic).toEqual(locked.mosaic);
-    // The width the drag asked for is honoured; the height is the grid's to
-    // dictate, so the crop comes back reshaped rather than as handed in.
-    expect(dragged.crop.w).toBeCloseTo(0.25, 6);
-    const built = finishedSize(
-      locked.mosaic.cols,
-      locked.mosaic.rows,
-      locked.mosaic.orientation
-    );
-    expect(pixelAspect(dragged.crop)).toBeCloseTo(built.widthMm / built.heightMm, 6);
-  });
-
   it('absorbs a clamped derivation into the crop rather than distorting', () => {
     // A crop this wide wants far fewer rows than the minimum allows, so the
     // derived count clamps — and the crop has to give way to stay honest.
@@ -265,15 +224,6 @@ describe('grid dimensions', () => {
       sliver.mosaic.orientation
     );
     expect(pixelAspect(sliver.crop)).toBeCloseTo(built.widthMm / built.heightMm, 2);
-  });
-
-  it('leaves the other dimension alone when unlinked', () => {
-    const state = reducer(loaded(), {
-      type: 'patchMosaic',
-      patch: { linkAspect: false },
-    });
-    const wide = reducer(state, { type: 'patchMosaic', patch: { cols: 64 } });
-    expect(wide.mosaic.rows).toBe(state.mosaic.rows);
   });
 });
 

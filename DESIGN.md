@@ -777,18 +777,17 @@ Below 900px the layout collapses to a single column with a tab bar:
 **Source**
 
 - Drop zone and file picker (`image/png`, `image/jpeg`).
-- Thumbnail with a draggable, resizable crop rectangle. Drag to move, handles to resize,
-  scroll to zoom. Corner handles always; edge handles as well when the crop is the master
-  and free to change shape (§9.3).
+- Thumbnail with a draggable, resizable crop rectangle. Drag to move, corner and edge
+  handles to resize freely in both axes, scroll to zoom (§9.3).
 - Buttons: _Fit whole image_, _Center_, _Reset_.
 - Rotate 90° CW / CCW, flip horizontal / vertical.
 
 **Mosaic**
 
 - Orientation: two radio cards, each with the small diagram from §2.1 and its cell ratio.
-- Width in bricks, height in bricks — number input plus slider, range 8–256.
-- _Shape the mosaic to the crop_ toggle, on by default: which side of the aspect lock
-  leads (§9.3), with a line of text under it saying what the current mode does.
+- Width in bricks, height in bricks — number input plus slider, range 8–256. The crop
+  is the master (§9.3): dragging it sets the aspect ratio, and the two counts always
+  change together to keep it, whichever one is edited.
 - Live readout: finished size in inches **and** cm, total studs, and in pips-out the
   number of 48×48 baseplates required.
 
@@ -820,36 +819,42 @@ Below 900px the layout collapses to a single column with a tab bar:
 - PNG (scale 1× / 2× / 4×, with the resulting pixel dimensions shown), CSV,
   BrickLink XML, Save Project, Load Project.
 
-### 9.3 Which side of the crop/grid lock gives way
+### 9.3 The crop is the master
 
 §2.4a fixes crop aspect **=** mosaic physical aspect. It does not say which one moves
-when they disagree, and that choice is the whole feel of the framing UI. Exactly one of
-the two is the master, chosen by _Shape the mosaic to the crop_:
+when they disagree, and that choice is the whole feel of the framing UI. The crop is
+always the master, unconditionally:
 
-| Toggle           | Master   | Crop drag                     | Setting a brick count      | Orientation switch                      |
-| ---------------- | -------- | ----------------------------- | -------------------------- | --------------------------------------- |
-| **On** (default) | the crop | free, both axes; grid follows | re-derives the other count | keeps the framing, recounts the courses |
-| Off              | the grid | aspect-locked, one free axis  | reshapes the crop          | reshapes the crop                       |
+| Action                 | Effect                                               |
+| ---------------------- | ---------------------------------------------------- |
+| Crop drag (any handle) | free, both axes; the two brick counts follow it      |
+| Setting a brick count  | re-derives the other count, holding the one just set |
+| Orientation switch     | keeps the framing, recounts the courses              |
 
-**A closed loop is the failure mode here, and v1 shipped with one.** The crop was fitted
-to the grid on load — so a 48×48 default made every photo square regardless of its
-subject — while the crop overlay was aspect-locked to the grid _and_ the grid was derived
-from the crop. Each side deferred to the other, so nothing could break the tie: square
-was a fixed point with no exit but the toggle, which read as a minor convenience and not
-as the only way out. A landscape photo could not produce a landscape mosaic.
+There is no toggle and no mode where the grid leads: a brick count can never be set
+independently of the crop's shape, because that is exactly the freedom that would let
+the picture come out stretched.
 
-The fix is not to loosen the invariant but to make the mastership one-directional and
-explicit. With the crop leading, a load starts from the whole photo and the counts take
-its shape; a drag is free in both axes and the counts follow.
+**A closed loop is the failure mode this design replaced, and v1 shipped with one.** The
+crop was fitted to the grid on load — so a 48×48 default made every photo square
+regardless of its subject — while the crop overlay was aspect-locked to the grid _and_
+the grid was derived from the crop. Each side deferred to the other, so nothing could
+break the tie: square was a fixed point with no exit. A landscape photo could not produce
+a landscape mosaic. An earlier fix added a toggle for which side led; this design goes
+further and removes the choice, since dragging the crop is the only mastership that
+never lets the two disagree.
+
+With the crop leading, a load starts from the whole photo and the counts take its shape;
+a drag is free in both axes and the counts follow.
 
 Two details that keep it honest:
 
 - **Rounding is always the crop's to absorb.** Whole bricks cannot express every ratio,
   and a derived count can clamp at the 8–256 limits. After deriving, the crop is refit to
   the grid's actual aspect, so the two never drift apart — the residual is under 1%.
-- **The reducer enforces the invariant, not just the overlay.** With the grid leading,
-  `setCrop` refits rather than trusting its caller, so the guarantee does not rest on the
-  UI being the only writer.
+- **The reducer enforces the invariant, not just the overlay.** `setCrop` and
+  `patchMosaic` both re-derive and refit inside the reducer, so the guarantee does not
+  rest on the UI being the only writer.
 
 ### 9.4 Accessibility
 

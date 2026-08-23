@@ -21,7 +21,7 @@ function project(overrides: Partial<ProjectFile> = {}): ProjectFile {
     app: { version: '0.1.0' },
     crop: { x: 0, y: 0, w: 1, h: 1 },
     transform: { rotate: 0, flipH: false, flipV: false },
-    mosaic: { orientation: 'pips-out', cols: 2, rows: 2, linkAspect: true },
+    mosaic: { orientation: 'pips-out', cols: 2, rows: 2 },
     adjust: { brightness: 0, contrast: 0, saturation: 0 },
     quantize: {
       dither: 'none',

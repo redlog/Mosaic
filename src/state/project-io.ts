@@ -43,7 +43,6 @@ export function toProject(
       orientation: state.mosaic.orientation,
       cols: state.mosaic.cols,
       rows: state.mosaic.rows,
-      linkAspect: state.mosaic.linkAspect,
     },
     adjust: state.adjust,
     quantize: {
@@ -104,7 +103,6 @@ export async function fromProject(
       orientation: file.mosaic.orientation,
       cols: file.mosaic.cols,
       rows: file.mosaic.rows,
-      linkAspect: file.mosaic.linkAspect,
     },
     adjust: file.adjust,
     quantizeSettings: {

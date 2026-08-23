@@ -128,22 +128,10 @@ export default function MosaicSettings({
         </div>
       </div>
 
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={mosaic.linkAspect}
-          onChange={(e) =>
-            dispatch({ type: 'patchMosaic', patch: { linkAspect: e.target.checked } })
-          }
-        />
-        Shape the mosaic to the crop
-      </label>
       <p className="note">
-        {mosaic.linkAspect
-          ? 'Drag the crop to any shape; the brick counts follow it.'
-          : 'Set both counts; the crop is reshaped to match them.'}{' '}
-        The crop and the finished mosaic always share proportions, or the picture comes
-        out stretched.
+        Drag the crop to any shape; the brick counts follow it, and changing a brick count
+        reshapes the other to match. The crop and the finished mosaic always share
+        proportions, or the picture comes out stretched.
       </p>
 
       <dl className="readout">
