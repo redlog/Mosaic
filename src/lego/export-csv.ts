@@ -8,6 +8,7 @@ export const CSV_HEADER = [
   'bl_color_id',
   'part_name',
   'design_id',
+  'element_id',
   'quantity',
 ] as const;
 
@@ -36,6 +37,7 @@ export function toCsv(bom: Bom): string {
         csvField(line.blColorId),
         csvField(line.partName),
         csvField(line.designId),
+        csvField(line.elementId),
         csvField(line.quantity),
       ].join(',')
     ),

@@ -26,11 +26,22 @@
 
 .app__columns {
   display: grid;
-  grid-template-columns: 21rem minmax(0, 1fr) 19rem;
-  gap: 1px;
+  /* Column widths are set inline from drag state; this is just the initial paint. */
+  grid-template-columns: 21rem 5px minmax(0, 1fr) 5px 19rem;
   background: var(--border);
   flex: 1;
   min-height: 0;
+}
+
+.app__resizer {
+  background: var(--border);
+  cursor: col-resize;
+  touch-action: none;
+}
+.app__resizer:hover,
+.app__resizer:focus-visible {
+  background: var(--accent);
+  outline: none;
 }
 
 .app__rail {

@@ -959,10 +959,10 @@ misread.
 ### 11.1 Parts list CSV
 
 ```csv
-color_name,bl_color_id,part_name,design_id,quantity
-White,1,Brick 2 x 4,3001,84
-White,1,Brick 1 x 2,3004,31
-Red,5,Brick 2 x 2,3003,12
+color_name,bl_color_id,part_name,design_id,element_id,quantity
+White,1,Brick 2 x 4,3001,3001001,84
+White,1,Brick 1 x 2,3004,3004001,31
+Red,5,Brick 2 x 2,3003,,12
 ```
 
 Sorted by color, then by descending part size. Standard RFC 4180 quoting.
