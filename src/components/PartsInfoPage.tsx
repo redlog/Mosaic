@@ -37,22 +37,29 @@ function aside(color: PaletteColor): string | null {
 
 export default function PartsInfoPage() {
   const [query, setQuery] = useState('');
+  const [showDiscontinued, setShowDiscontinued] = useState(false);
+  const [showNonstandard, setShowNonstandard] = useState(false);
 
   const colors = useMemo(() => {
-    const sorted = [...palette.colors].sort((a, b) => a.name.localeCompare(b.name));
     const q = query.trim().toLowerCase();
-    return q ? sorted.filter((c) => c.name.toLowerCase().includes(q)) : sorted;
-  }, [query]);
+    return palette.colors
+      .filter((c) => showDiscontinued || isCurrent(c))
+      .filter((c) => showNonstandard || (c.finish ?? 'solid') === 'solid')
+      .filter((c) => !q || c.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [query, showDiscontinued, showNonstandard]);
 
   return (
     <section className="panel" aria-labelledby="parts-info-heading">
       <h2 id="parts-info-heading">
-        Parts Info <span className="muted small">{palette.colors.length} colors</span>
+        Parts Info{' '}
+        <span className="muted small">
+          {colors.length} of {palette.colors.length} colors
+        </span>
       </h2>
       <p className="muted small">
         Every color LEGO makes these bricks in: its name, RGB value, a swatch, and the
-        brick sizes it is actually produced in. Retired colors and non-solid finishes are
-        included and labeled.
+        brick sizes it is actually produced in.
       </p>
 
       <div className="field">
@@ -67,6 +74,24 @@ export default function PartsInfoPage() {
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={showDiscontinued}
+          onChange={(e) => setShowDiscontinued(e.target.checked)}
+        />
+        Show discontinued colors
+      </label>
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={showNonstandard}
+          onChange={(e) => setShowNonstandard(e.target.checked)}
+        />
+        Show nonstandard colors
+        <span className="muted small">(transparent, metallic, glitter, glow)</span>
+      </label>
 
       <div className="table-scroll">
         <table className="colors-table">
@@ -109,7 +134,9 @@ export default function PartsInfoPage() {
             {colors.length === 0 && (
               <tr>
                 <td colSpan={5} className="muted">
-                  No colors match &ldquo;{query}&rdquo;.
+                  {query
+                    ? `No colors match “${query}”.`
+                    : 'No colors match these filters.'}
                 </td>
               </tr>
             )}
