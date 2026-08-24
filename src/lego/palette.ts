@@ -16,7 +16,7 @@ export interface Palette {
   byKey: ReadonlyMap<string, LegoColor>;
   /**
    * Non-fatal problems worth showing the user — chiefly colors with no
-   * BrickLink ID, which cannot appear in a Wanted List export.
+   * known BrickLink ID.
    */
   warnings: readonly string[];
 }
@@ -97,9 +97,7 @@ export function validatePaletteFile(file: unknown): PaletteValidation {
     }
 
     if (c.blColorId === null) {
-      warnings.push(
-        `${label} has no BrickLink color ID and will be omitted from XML export`
-      );
+      warnings.push(`${label} has no known BrickLink color ID`);
     } else if (typeof c.blColorId !== 'number' || !Number.isInteger(c.blColorId)) {
       errors.push(`${label} \`blColorId\` must be an integer or null`);
     }
@@ -185,7 +183,7 @@ export function loadPalette(options: LoadPaletteOptions = {}): Palette {
   } else if (file.provenance.bricklinkVerified === false) {
     allWarnings.push(
       'BrickLink color IDs are hand-maintained and unverified — check them before ' +
-        'uploading a Wanted List. Everything else in the palette comes from the catalog.'
+        'relying on them. Everything else in the palette comes from the catalog.'
     );
   }
 
@@ -320,7 +318,7 @@ export function elementCoverage(colors: readonly LegoColor[]): {
   return { known, total };
 }
 
-/** Colors that cannot be emitted into a BrickLink Wanted List. */
+/** Colors with no known BrickLink color ID. */
 export function colorsMissingBricklinkId(colors: readonly LegoColor[]): LegoColor[] {
   return colors.filter((c) => c.blColorId === null);
 }

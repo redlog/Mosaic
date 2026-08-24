@@ -1,6 +1,6 @@
 # LEGO Mosaic Generator — Design Document
 
-**Status:** built. All nine phases complete, plus the Pick a Brick export (§11.3) and
+**Status:** built. All nine phases complete, plus the Pick a Brick export (§11.2) and
 free-form framing (§9.3) and rebuild coalescing (§12.1) added after v1; see TODO.md for the two Phase 9 items that are
 prepared rather than performed (Firefox/Safari verification and the Pages deploy).
 **Version:** 1.0 (2026-08-23)
@@ -179,7 +179,6 @@ allows `!` only under `src/lego/` so the escape hatch stays where the hot loops 
    │  ├─ render.ts              tiling → canvas
    │  ├─ project.ts             JSON save/load, RLE, migrations
    │  ├─ export-csv.ts
-   │  ├─ export-bricklink.ts
    │  ├─ export-pickabrick.ts   lego.com Pick a Brick CSV (element IDs)
    │  └─ rng.ts                 seeded PRNG (mulberry32)
    ├─ browser/                  ← platform adapters; the only DOM-dependent code
@@ -227,10 +226,10 @@ export interface LegoColor {
   hex: string; // "#008F9B"
   rgb: [number, number, number];
   lab: [number, number, number]; // precomputed at load
-  blColorId: number; // BrickLink color ID, required for XML export
+  blColorId: number; // BrickLink color ID, for cross-referencing an order
   ldrawId?: number;
   shapes: string[]; // design IDs this color is actually produced in
-  elements?: Record<string, string>; // design ID → LEGO element ID; see §11.3
+  elements?: Record<string, string>; // design ID → LEGO element ID; see §11.2
 }
 
 /** Result of quantization: one palette index per cell, row-major. */
@@ -362,7 +361,7 @@ does the file I/O. Two details worth naming:
 > carries one, and Rebrickable's own color numbering is unrelated — it matches the LDraw
 > code for the classic range, not BrickLink. They come from
 > `data/bricklink-color-ids.csv`, hand-maintained and covering 42 colors; the other 52
-> carry `null` and are excluded from the Wanted List XML rather than guessed. Provenance
+> carry `null` rather than a guessed value. Provenance
 > tracks this separately as `bricklinkVerified: false`, so the Pick a Brick export —
 > entirely catalog-derived — is not saddled with a warning that does not apply to it.
 > The test suite validates structure, never specific values, and additionally checks
@@ -411,7 +410,7 @@ Grid          Int16Array of palette indices
  │  tile(inventory, weights, seed)     ← in worker
  ▼
 Tiling        list of placements
- │  ├─ bom()      → parts list → CSV, BrickLink XML
+ │  ├─ bom()      → parts list → CSV, Pick a Brick CSV
  │  └─ render()   → canvas → PNG
 ```
 
@@ -531,8 +530,8 @@ the bond breaks. Measured cost on a solid 32-wide wall: about 6% more pieces.
 
 Piece count is a proxy for cost. It is not a perfect proxy — a 2×8 costs more than a
 1×1 — but real per-part prices vary by color and by seller, and they are not available
-offline. The BrickLink export exists precisely so that real pricing happens where the
-real data is.
+offline. The Parts CSV carries a BrickLink color ID per line precisely so real pricing
+can happen where the real data is.
 
 ### 7.1 Pips-out — randomized greedy with restarts
 
@@ -764,7 +763,7 @@ Desktop, ≥ 1100px — three columns:
 │ ADJUST       │                              │      ...     │
 │ PALETTE      │                              │              │
 │ ALGORITHM    │                              │ EXPORT       │
-│              │                              │  PNG CSV XML │
+│              │                              │  PNG CSV PAB │
 └──────────────┴──────────────────────────────┴──────────────┘
    320px               flexible                    300px
 ```
@@ -816,8 +815,8 @@ Below 900px the layout collapses to a single column with a tab bar:
 
 **Export**
 
-- PNG (scale 1× / 2× / 4×, with the resulting pixel dimensions shown), CSV,
-  BrickLink XML, Save Project, Load Project.
+- PNG (scale 1× / 2× / 4×, with the resulting pixel dimensions shown), Parts CSV,
+  Pick a Brick CSV, Save Project, Load Project.
 
 ### 9.3 The crop is the master
 
@@ -967,28 +966,7 @@ Red,5,Brick 2 x 2,3003,,12
 
 Sorted by color, then by descending part size. Standard RFC 4180 quoting.
 
-### 11.2 BrickLink Wanted List XML
-
-```xml
-<INVENTORY>
-  <ITEM>
-    <ITEMTYPE>P</ITEMTYPE>
-    <ITEMID>3001</ITEMID>
-    <COLOR>1</COLOR>
-    <MINQTY>84</MINQTY>
-  </ITEM>
-</INVENTORY>
-```
-
-Uploads directly to BrickLink, which then prices and sources the entire build. This is
-where real pricing happens, and it is the highest-value export in the app.
-
-**Validation:** a wrong `COLOR` id produces a silently wrong wanted list, which is worse
-than no export. So every enabled color is checked for a numeric `blColorId` at palette
-load; any color missing one is excluded from the XML and reported in the UI with the
-affected quantities, rather than being emitted with a guessed id.
-
-### 11.3 Pick a Brick CSV
+### 11.2 Pick a Brick CSV
 
 ```csv
 elementId,quantity
@@ -1000,8 +978,8 @@ Two columns, imported at lego.com. **Element IDs, not design IDs** — and the d
 is the whole design problem here.
 
 A design ID names a shape: 3001 is the 2×4 brick in every colour. An element ID names one
-_(shape, colour)_ pair, which is what an order consists of. The BrickLink XML expresses
-that pair as two fields, `ITEMID` + `COLOR`; Pick a Brick collapses it into a single
+_(shape, colour)_ pair, which is what an order consists of. The Parts CSV expresses that
+pair as two columns, `design_id` + `bl_color_id`; Pick a Brick collapses it into a single
 number that has to be looked up.
 
 The temptation is to compute it. Many classic elements really do read as the design ID
@@ -1014,15 +992,15 @@ name column for a human to catch it in.
 
 So `LegoColor.elements` is a lookup keyed by design ID, populated from real data or left
 empty. A lot with no entry is omitted and named in a warning, exactly as a colour with no
-`blColorId` is omitted from the Wanted List (§11.2). The bundled palette ships with the
-table empty rather than fabricated; `scripts/merge-elements.ts` loads a real one, and
-`elementCoverage()` drives a UI note reporting known pairs out of total.
+`blColorId` is left blank in the Parts CSV and named in a warning. The bundled palette
+ships with the table empty rather than fabricated; `scripts/merge-elements.ts` loads a
+real one, and `elementCoverage()` drives a UI note reporting known pairs out of total.
 
 **Per-line cap:** Pick a Brick limits a single order line to 999. Quantities above that
 are split across repeated rows for the same element rather than clamped — a clamp would
 silently drop bricks from an order that looked complete.
 
-### 11.4 Mosaic PNG
+### 11.3 Mosaic PNG
 
 Build view or clean view, at 1× / 2× / 4×, via `canvas.toBlob('image/png')`.
 
@@ -1145,8 +1123,7 @@ verified manually.
 **project.ts** — save → load round-trips to an identical state; RLE encode/decode
 round-trips on random grids; a version-0 file is rejected with a clear message.
 
-**exports** — CSV parses back to the same rows; XML parses via `DOMParser` with no
-error node.
+**exports** — CSV parses back to the same rows.
 
 ---
 
@@ -1161,7 +1138,7 @@ error node.
 | All palette colors disabled                         | Build blocked with an explanatory message                     |
 | Color enabled but no legal shapes under strict mode | Auto-disabled, reported in UI                                 |
 | Color that exists in larger bricks but not as a 1×1 | Auto-disabled: nothing could cover a stray cell of it         |
-| Color with no `blColorId`                           | Excluded from XML export, reported with quantities            |
+| Color with no `blColorId`                           | Left blank in the Parts CSV, reported with quantities         |
 | Grid above 256 in either dimension                  | Warning; hard cap at 400                                      |
 | Crop dragged outside image bounds                   | Clamped to the source rectangle                               |
 | Load of a newer `version`                           | Rejected with a clear message, no partial read                |

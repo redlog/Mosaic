@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { toBricklinkXml, BRICKLINK_MIME } from '../lego/export-bricklink';
 import { toCsv, CSV_MIME } from '../lego/export-csv';
 import { toPickABrickCsv, PICKABRICK_MIME } from '../lego/export-pickabrick';
 import { renderGeometry } from '../lego/render';
@@ -22,13 +21,6 @@ import {
 
 /** Whether the bundled color table has been checked against a real catalog. */
 const PALETTE_VERIFIED = palette.provenance.verified;
-
-/**
- * BrickLink IDs are tracked apart from the rest: nothing in the LEGO or
- * Rebrickable data carries one, so they stay hand-maintained even once
- * everything else is generated.
- */
-const BRICKLINK_VERIFIED = palette.provenance.bricklinkVerified !== false;
 
 /**
  * How many (color, brick) pairs carry an element ID. Resolved once — the
@@ -74,7 +66,6 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
     }
   }
 
-  const bricklink = bom ? toBricklinkXml(bom) : null;
   const pickABrick = bom ? toPickABrickCsv(bom) : null;
 
   function saveProject() {
@@ -157,26 +148,12 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
         >
           Pick a Brick CSV
         </button>
-        <button
-          type="button"
-          disabled={!ready || bricklink?.included.length === 0}
-          onClick={() =>
-            bricklink &&
-            downloadText(
-              bricklink.xml,
-              exportFilename(name, 'wanted', 'xml'),
-              BRICKLINK_MIME
-            )
-          }
-        >
-          BrickLink XML
-        </button>
       </div>
 
       <p className="muted small">
-        The BrickLink XML uploads as a Wanted List. The Pick a Brick CSV imports at
-        lego.com and is keyed by <strong>element ID</strong> — one specific brick in one
-        specific colour — which is a lookup, not something derivable from the design ID.
+        The Pick a Brick CSV imports at lego.com and is keyed by{' '}
+        <strong>element ID</strong> — one specific brick in one specific colour — which is
+        a lookup, not something derivable from the design ID.
       </p>
 
       {ELEMENTS.known === 0 ? (
@@ -198,10 +175,6 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
       {/* With no element table loaded at all, the note above already says this. */}
       {ELEMENTS.known > 0 && pickABrick && pickABrick.warnings.length > 0 && (
         <p className="note note--warn">{pickABrick.warnings.join(' ')}</p>
-      )}
-
-      {bricklink && bricklink.warnings.length > 0 && (
-        <p className="note note--warn">{bricklink.warnings.join(' ')}</p>
       )}
 
       <hr />
@@ -244,20 +217,11 @@ export default function ExportPanel({ state, derived, dispatch }: ExportPanelPro
         </p>
       )}
 
-      {!PALETTE_VERIFIED ? (
+      {!PALETTE_VERIFIED && (
         <p className="note note--warn">
           The bundled color data is unverified — check part numbers and BrickLink color
           IDs before placing an order.
         </p>
-      ) : (
-        !BRICKLINK_VERIFIED && (
-          <p className="note">
-            Colors, availability and element IDs come from the LEGO catalog. BrickLink
-            color IDs do not — no export carries one — so they are hand-maintained and
-            worth a glance before you upload a Wanted List. The Pick a Brick CSV is
-            unaffected.
-          </p>
-        )
       )}
     </section>
   );

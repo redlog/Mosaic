@@ -42,9 +42,9 @@ export interface PaletteColorData {
   /** "#RRGGBB". */
   hex: string;
   /**
-   * BrickLink color ID, required to emit this color in a Wanted List.
-   * `null` means unknown — such colors are excluded from XML export rather
-   * than guessed, because a wrong ID produces a silently wrong order.
+   * BrickLink color ID, for cross-referencing an order against BrickLink's
+   * catalog. `null` means unknown — left blank rather than guessed, because
+   * a wrong ID would point at a silently wrong color.
    */
   blColorId: number | null;
   /** Whether light passes through it. Absent means opaque. */

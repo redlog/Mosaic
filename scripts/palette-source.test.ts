@@ -112,7 +112,9 @@ describe('toPaletteFile', () => {
   it('treats a missing BrickLink ID as null rather than guessing', () => {
     const file = toPaletteFile([{ name: 'Red', hex: '#C91A09' }]);
     expect(file.colors[0]!.blColorId).toBeNull();
-    expect(validatePaletteFile(file).warnings.join()).toMatch(/omitted from XML export/);
+    expect(validatePaletteFile(file).warnings.join()).toMatch(
+      /no known BrickLink color ID/
+    );
   });
 
   it('marks output unverified unless told otherwise', () => {
