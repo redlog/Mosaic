@@ -1,7 +1,5 @@
-// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 import { CSV_HEADER, csvField, toCsv } from './export-csv';
-import { toBricklinkXml, xmlEscape } from './export-bricklink';
 import { buildBom, type Bom } from './bom';
 import { loadPalette } from './palette';
 import { tile } from './tile';
@@ -116,104 +114,5 @@ describe('toCsv', () => {
     const bom = realBom();
     const total = parseCsv(toCsv(bom)).reduce((sum, r) => sum + Number(r.quantity), 0);
     expect(total).toBe(bom.totals.pieces);
-  });
-});
-
-// ---------------------------------------------------------------------------
-
-describe('xmlEscape', () => {
-  it('escapes the five XML entities', () => {
-    expect(xmlEscape(`<&>"'`)).toBe('&lt;&amp;&gt;&quot;&apos;');
-  });
-});
-
-describe('toBricklinkXml', () => {
-  const parse = (xml: string): Document =>
-    new DOMParser().parseFromString(xml, 'application/xml');
-
-  it('produces well-formed XML', () => {
-    const doc = parse(toBricklinkXml(realBom()).xml);
-    expect(doc.querySelector('parsererror')).toBeNull();
-    expect(doc.documentElement.nodeName).toBe('INVENTORY');
-  });
-
-  it('emits one ITEM per line with the documented fields', () => {
-    const bom = realBom();
-    const doc = parse(toBricklinkXml(bom).xml);
-    const items = [...doc.querySelectorAll('ITEM')];
-    expect(items).toHaveLength(bom.lines.length);
-
-    for (const [i, item] of items.entries()) {
-      const line = bom.lines[i]!;
-      expect(item.querySelector('ITEMTYPE')?.textContent).toBe('P');
-      expect(item.querySelector('ITEMID')?.textContent).toBe(line.designId);
-      expect(item.querySelector('COLOR')?.textContent).toBe(String(line.blColorId));
-      expect(item.querySelector('MINQTY')?.textContent).toBe(String(line.quantity));
-    }
-  });
-
-  it('quantities in the file sum to the piece count', () => {
-    const bom = realBom();
-    const doc = parse(toBricklinkXml(bom).xml);
-    const total = [...doc.querySelectorAll('MINQTY')].reduce(
-      (sum, node) => sum + Number(node.textContent),
-      0
-    );
-    expect(total).toBe(bom.totals.pieces);
-  });
-
-  /**
-   * The failure this guards against is the worst one in the app: a wrong COLOR
-   * id does not error, it silently orders the wrong color. Omitting and saying
-   * so beats guessing.
-   */
-  it('omits colors with no BrickLink ID rather than guessing one', () => {
-    const noId: LegoColor[] = [
-      { ...colors[0]!, blColorId: null },
-      { ...colors[1]!, blColorId: 7 },
-    ];
-    const bom = buildBom(
-      tiling([
-        { designId: '3005', col: 0, row: 0, w: 1, h: 1, colorIdx: 0 },
-        { designId: '3005', col: 1, row: 0, w: 1, h: 1, colorIdx: 0 },
-        { designId: '3004', col: 2, row: 0, w: 2, h: 1, colorIdx: 1 },
-      ]),
-      noId
-    );
-    const result = toBricklinkXml(bom);
-
-    expect(result.included).toHaveLength(1);
-    expect(result.omitted).toHaveLength(1);
-    expect(result.omitted[0]!.quantity).toBe(2);
-
-    const doc = parse(result.xml);
-    expect(doc.querySelectorAll('ITEM')).toHaveLength(1);
-    expect(doc.querySelector('COLOR')?.textContent).toBe('7');
-    // Nothing that could be mistaken for a real id leaked through.
-    expect(result.xml).not.toMatch(/<COLOR>(null|undefined|NaN|-1)<\/COLOR>/);
-
-    expect(result.warnings.join()).toMatch(/Omitted 1 line \(2 bricks\)/);
-  });
-
-  it('warns when nothing at all can be exported', () => {
-    const noId: LegoColor[] = [{ ...colors[0]!, blColorId: null }];
-    const bom = buildBom(
-      tiling([{ designId: '3005', col: 0, row: 0, w: 1, h: 1, colorIdx: 0 }]),
-      noId
-    );
-    const result = toBricklinkXml(bom);
-    expect(result.warnings.join()).toMatch(/Nothing to export/);
-    expect(parse(result.xml).querySelectorAll('ITEM')).toHaveLength(0);
-  });
-
-  it('stays well-formed with no items', () => {
-    const result = toBricklinkXml(buildBom(tiling([]), colors));
-    const doc = parse(result.xml);
-    expect(doc.querySelector('parsererror')).toBeNull();
-    expect(doc.documentElement.nodeName).toBe('INVENTORY');
-  });
-
-  it('is silent when every line exports cleanly', () => {
-    expect(toBricklinkXml(realBom()).warnings).toEqual([]);
   });
 });

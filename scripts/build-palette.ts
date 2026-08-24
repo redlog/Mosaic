@@ -116,8 +116,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   );
   if (report.missingBricklinkIds.length > 0) {
     console.log(
-      `No BrickLink ID for ${report.missingBricklinkIds.length} colors ` +
-        `(excluded from Wanted List export): ${report.missingBricklinkIds.join(', ')}`
+      `No BrickLink ID for ${report.missingBricklinkIds.length} colors: ` +
+        report.missingBricklinkIds.join(', ')
     );
   }
 

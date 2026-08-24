@@ -18,9 +18,9 @@
  * own numbering (it matches the LDraw code for the classic range); it is
  * neither the LEGO color number nor the BrickLink one, and no arithmetic turns
  * one into the other. They come from `data/bricklink-color-ids.csv`, a
- * hand-maintained name -> ID table, and colors missing from it get `null` —
- * which the XML export skips rather than guessing, because a wrong ID orders
- * the wrong color and nothing downstream can catch it.
+ * hand-maintained name -> ID table, and colors missing from it get `null`
+ * rather than a guessed value, because a wrong ID points at the wrong color
+ * and nothing downstream can catch it.
  */
 import { BRICK_SHAPES } from '../src/lego/parts';
 import { hexToRgb, rgbToLab } from '../src/lego/color';
@@ -302,8 +302,8 @@ export function buildPalette(
         "element ID. BrickLink color IDs are the exception — Rebrickable's color " +
         'numbering is its own and does not convert, so they come from the ' +
         'hand-maintained data/bricklink-color-ids.csv and are unverified; colors ' +
-        'missing from that table carry null and are left out of the Wanted List ' +
-        'export rather than guessed. Regenerate with `npm run palette:build`.',
+        'missing from that table carry null rather than a guessed value. ' +
+        'Regenerate with `npm run palette:build`.',
     },
     colors: entries.map((e) => e.color),
   };

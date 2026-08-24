@@ -11,7 +11,6 @@ import { frameImage, clampCrop, pickDownscaleFactor } from './frame';
 import { quantize } from './quantize';
 import { tile } from './tile';
 import { buildBom } from './bom';
-import { toBricklinkXml } from './export-bricklink';
 import { parseProject, validateProject, PROJECT_VERSION } from './project';
 import { defaultColorKeys, enabledColors, unusableColors } from './palette';
 import { MAX_GRID_DIMENSION, WARN_GRID_DIMENSION } from './constants';
@@ -120,7 +119,7 @@ describe('§14 — palette exhaustion', () => {
 });
 
 describe('§14 — missing BrickLink IDs', () => {
-  it('omits the color from XML and reports the quantity', () => {
+  it('reports the color and quantity rather than guessing an ID', () => {
     const noId: LegoColor[] = [{ ...red, blColorId: null }];
     const grid = quantize(solidCells(4, 4, red.rgb), noId).grid;
     const tiling = tile(grid, 'pips-out', {
@@ -128,12 +127,10 @@ describe('§14 — missing BrickLink IDs', () => {
       colors: noId,
       restarts: 2,
     });
-    const result = toBricklinkXml(buildBom(tiling, noId));
+    const bom = buildBom(tiling, noId);
 
-    expect(result.included).toHaveLength(0);
-    expect(result.warnings.join()).toMatch(/Nothing to export/);
-    // Nothing that could be mistaken for a real color id slipped through.
-    expect(result.xml).not.toMatch(/<COLOR>/);
+    expect(bom.lines.every((l) => l.blColorId === null)).toBe(true);
+    expect(bom.warnings.join()).toMatch(/no BrickLink color ID/);
   });
 });
 

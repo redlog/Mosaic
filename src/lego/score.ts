@@ -102,7 +102,8 @@ export function countOnes(placements: readonly Placement[]): number {
  *
  * Piece count stands in for cost. It is not a perfect proxy — a 2x8 costs more
  * than a 1x1 — but real per-part prices vary by color and seller and are not
- * available offline, which is exactly why the BrickLink export exists.
+ * available offline, which is exactly why the parts list carries a BrickLink
+ * color ID per line.
  */
 export function scoreTiling(
   placements: readonly Placement[],

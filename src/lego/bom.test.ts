@@ -154,7 +154,7 @@ describe('totals', () => {
 describe('warnings', () => {
   const noId: LegoColor[] = [{ ...colors[0]!, blColorId: null }];
 
-  it('flags colors that cannot reach the BrickLink export', () => {
+  it('flags colors with no known BrickLink color ID', () => {
     const bom = buildBom(
       handTiling([
         { designId: '3005', col: 0, row: 0, w: 1, h: 1, colorIdx: 0 },

@@ -16,7 +16,7 @@ restored as a single JSON file.
 - The image is downsampled, mapped to real LEGO colors, and — importantly — merged into
   the **largest legal bricks available**, so a flat region becomes a handful of 2×8s
   rather than hundreds of 1×1s. Cheaper, faster to build, stronger.
-- Export the preview PNG, a parts-list CSV, a BrickLink Wanted List XML, and a
+- Export the preview PNG, a parts-list CSV (with a BrickLink color ID per line), and a
   Pick a Brick CSV that imports straight into lego.com.
 
 ## Status
@@ -181,8 +181,8 @@ elementId,quantity
 
 **Element IDs, not design IDs.** A design ID names a _shape_: 3001 is the 2×4 brick in
 every color there is. An element ID names one specific _(shape, color)_ pair, which is
-what an order actually consists of. Pick a Brick keys on elements, and unlike the
-BrickLink XML there is no name column in the file for a human to sanity-check against.
+what an order actually consists of. Pick a Brick keys on elements, and unlike the parts
+CSV there is no name column in the file for a human to sanity-check against.
 
 The two are not derivable from each other. Plenty of classic elements do read as the
 design ID with a LEGO color number stuck on the end — 3001 in Bright Red is 300121, 3003
@@ -238,10 +238,10 @@ choosing arbitrarily.
 **The one thing still unverified is the BrickLink color IDs.** No LEGO or Rebrickable
 export carries one — Rebrickable's own color numbering is unrelated and does not convert
 — so they come from `data/bricklink-color-ids.csv`, a hand-maintained name-to-ID table
-covering 42 colors. The remaining 52 carry `null`, are excluded from the Wanted List XML
-rather than guessed, and are named by the build. The palette records this separately
-from the rest (`provenance.bricklinkVerified: false`) so the Pick a Brick path, which is
-fully derived from the catalog, is not tarred with the same warning.
+covering 42 colors. The remaining 52 carry `null` rather than a guessed value, and are
+named by the build. The palette records this separately from the rest
+(`provenance.bricklinkVerified: false`) so the Pick a Brick path, which is fully derived
+from the catalog, is not tarred with the same warning.
 
 To import a palette from somewhere else entirely — a BrickLink export, a hand-kept sheet
 — there is `npm run palette:import -- colors.csv`. It takes CSV or JSON, local or a URL,

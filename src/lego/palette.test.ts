@@ -167,7 +167,7 @@ describe('validatePaletteFile', () => {
     nulled.colors[0]!.blColorId = null;
     const result = validatePaletteFile(nulled);
     expect(result.errors).toEqual([]);
-    expect(result.warnings.join()).toMatch(/omitted from XML export/);
+    expect(result.warnings.join()).toMatch(/no known BrickLink color ID/);
   });
 });
 
