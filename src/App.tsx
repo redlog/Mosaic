@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import AdjustPanel from './components/AdjustPanel';
 import AlgorithmPanel from './components/AlgorithmPanel';
+import ColumnResizer from './components/ColumnResizer';
 import ExportPanel from './components/ExportPanel';
 import MosaicSettings from './components/MosaicSettings';
 import PalettePanel from './components/PalettePanel';
@@ -35,6 +36,52 @@ function useNarrow(): boolean {
   return narrow;
 }
 
+const DEFAULT_LEFT_WIDTH = 336; // 21rem at the default 16px root
+const DEFAULT_RIGHT_WIDTH = 304; // 19rem
+const MIN_RAIL_WIDTH = 220;
+const MAX_RAIL_WIDTH = 520;
+const WIDTH_STORAGE_KEY = 'mosaic.columnWidths';
+
+function readStoredWidths(): { left: number; right: number } {
+  try {
+    const raw = localStorage.getItem(WIDTH_STORAGE_KEY);
+    if (!raw) return { left: DEFAULT_LEFT_WIDTH, right: DEFAULT_RIGHT_WIDTH };
+    const parsed = JSON.parse(raw) as { left?: number; right?: number };
+    return {
+      left: typeof parsed.left === 'number' ? parsed.left : DEFAULT_LEFT_WIDTH,
+      right: typeof parsed.right === 'number' ? parsed.right : DEFAULT_RIGHT_WIDTH,
+    };
+  } catch {
+    return { left: DEFAULT_LEFT_WIDTH, right: DEFAULT_RIGHT_WIDTH };
+  }
+}
+
+/** Draggable widths for the left and right rails; the middle column fills the rest. */
+function useColumnWidths() {
+  const [leftWidth, setLeftWidth] = useState(() => readStoredWidths().left);
+  const [rightWidth, setRightWidth] = useState(() => readStoredWidths().right);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        WIDTH_STORAGE_KEY,
+        JSON.stringify({ left: leftWidth, right: rightWidth })
+      );
+    } catch {
+      // Private browsing or a full quota — resizing still works, it just won't persist.
+    }
+  }, [leftWidth, rightWidth]);
+
+  const clamp = (w: number) => Math.min(MAX_RAIL_WIDTH, Math.max(MIN_RAIL_WIDTH, w));
+
+  return {
+    leftWidth,
+    rightWidth,
+    growLeft: (dx: number) => setLeftWidth((w) => clamp(w + dx)),
+    growRight: (dx: number) => setRightWidth((w) => clamp(w - dx)),
+  };
+}
+
 export default function App() {
   const {
     state,
@@ -49,6 +96,7 @@ export default function App() {
   } = useMosaicStore();
   const narrow = useNarrow();
   const [tab, setTab] = useState<Tab>('source');
+  const { leftWidth, rightWidth, growLeft, growRight } = useColumnWidths();
 
   const left = (
     <>
@@ -150,9 +198,16 @@ export default function App() {
           </main>
         </>
       ) : (
-        <main className="app__columns">
+        <main
+          className="app__columns"
+          style={{
+            gridTemplateColumns: `${leftWidth}px 5px minmax(0, 1fr) 5px ${rightWidth}px`,
+          }}
+        >
           <div className="app__rail">{left}</div>
+          <ColumnResizer label="Resize left panel" onDrag={growLeft} />
           {preview}
+          <ColumnResizer label="Resize right panel" onDrag={growRight} />
           <div className="app__rail">{right}</div>
         </main>
       )}

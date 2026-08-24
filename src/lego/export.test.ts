@@ -88,6 +88,7 @@ describe('toCsv', () => {
         bl_color_id: line.blColorId === null ? '' : String(line.blColorId),
         part_name: line.partName,
         design_id: line.designId,
+        element_id: line.elementId === null ? '' : line.elementId,
         quantity: String(line.quantity),
       });
     }

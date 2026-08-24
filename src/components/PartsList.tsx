@@ -48,6 +48,7 @@ export default function PartsList({ derived }: PartsListProps) {
                     <tr>
                       <th scope="col">Part</th>
                       <th scope="col">ID</th>
+                      <th scope="col">Element ID</th>
                       <th scope="col">Qty</th>
                     </tr>
                   </thead>
@@ -56,6 +57,7 @@ export default function PartsList({ derived }: PartsListProps) {
                       <tr key={line.designId}>
                         <td>{line.partName.replace('Brick ', '')}</td>
                         <td className="muted">{line.designId}</td>
+                        <td className="muted">{line.elementId ?? '—'}</td>
                         <td>{line.quantity.toLocaleString()}</td>
                       </tr>
                     ))}
