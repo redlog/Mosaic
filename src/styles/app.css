@@ -651,7 +651,7 @@ details summary {
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
-.colors-table tr:last-child td {
+.colors-table tbody tr:last-child td {
   border-bottom: none;
 }
 .colors-table td:nth-child(3),
@@ -659,9 +659,34 @@ details summary {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.colors-table .swatch__chip {
-  width: 18px;
-  height: 18px;
+
+.colors-table td:first-child {
+  width: 1%;
+  padding-right: 0.3rem;
+}
+.colors-table__swatch {
+  display: block;
+  width: 3.4rem;
+  height: 2.1rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+/* Hovering a row recolors it with that color's own swatch, text flipped
+   to whichever of black/white the row computed as legible on it. */
+.colors-table tbody tr:hover {
+  background: var(--row-color, var(--surface));
+  color: var(--row-text, var(--text));
+}
+.colors-table tbody tr:hover td {
+  border-bottom-color: var(--row-color, var(--border));
+}
+.colors-table tbody tr:hover .muted {
+  color: var(--row-text, var(--muted));
+  opacity: 0.75;
+}
+.colors-table tbody tr:hover .colors-table__swatch {
+  border-color: var(--row-text, var(--border));
 }
 
 .visually-hidden {

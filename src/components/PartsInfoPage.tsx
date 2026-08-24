@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import { isCurrent } from '../lego/palette';
 import { getShape } from '../lego/parts';
 import { palette } from '../state/useMosaicStore';
@@ -9,6 +9,22 @@ type PaletteColor = (typeof palette.colors)[number];
 function sizeLabel(designId: string): string {
   const shape = getShape(designId);
   return `${shape.w}×${shape.h}`;
+}
+
+/**
+ * Perceived brightness (ITU-R BT.601), 0-255. Used only to pick black or
+ * white row text when a row is recolored to its own swatch on hover.
+ */
+function brightness([r, g, b]: PaletteColor['rgb']): number {
+  return (r * 299 + g * 587 + b * 114) / 1000;
+}
+
+/** Inline custom properties a `<tr>` reads on hover — see the `.colors-table` CSS. */
+function rowColorVars(color: PaletteColor): CSSProperties {
+  return {
+    '--row-color': color.hex,
+    '--row-text': brightness(color.rgb) > 150 ? '#000' : '#fff',
+  } as CSSProperties;
 }
 
 /** Same badge logic as the palette panel, so the two stay in sync. */
@@ -70,10 +86,10 @@ export default function PartsInfoPage() {
               const note = aside(color);
               const [r, g, b] = color.rgb;
               return (
-                <tr key={color.key}>
+                <tr key={color.key} style={rowColorVars(color)}>
                   <td>
                     <span
-                      className="swatch__chip"
+                      className="colors-table__swatch"
                       style={{ background: color.hex }}
                       aria-hidden="true"
                     />
