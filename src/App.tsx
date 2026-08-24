@@ -5,11 +5,29 @@ import ColumnResizer from './components/ColumnResizer';
 import ExportPanel from './components/ExportPanel';
 import MosaicSettings from './components/MosaicSettings';
 import PalettePanel from './components/PalettePanel';
+import PartsInfoPage from './components/PartsInfoPage';
 import PartsList from './components/PartsList';
 import PreviewCanvas from './components/PreviewCanvas';
 import SourcePanel from './components/SourcePanel';
 import StatsCard from './components/StatsCard';
 import { useMosaicStore } from './state/useMosaicStore';
+
+type Page = 'mosaic' | 'parts-info';
+
+/** The whole app is one route, so the hash alone tells us which page to show. */
+function pageFromHash(): Page {
+  return window.location.hash === '#/parts-info' ? 'parts-info' : 'mosaic';
+}
+
+function usePage(): Page {
+  const [page, setPage] = useState<Page>(() => pageFromHash());
+  useEffect(() => {
+    const onHashChange = () => setPage(pageFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+  return page;
+}
 
 type Tab = 'source' | 'settings' | 'preview' | 'parts';
 const TABS: Array<{ value: Tab; label: string }> = [
@@ -95,6 +113,7 @@ export default function App() {
     setCrop,
   } = useMosaicStore();
   const narrow = useNarrow();
+  const page = usePage();
   const [tab, setTab] = useState<Tab>('source');
   const { leftWidth, rightWidth, growLeft, growRight } = useColumnWidths();
 
@@ -136,80 +155,101 @@ export default function App() {
   return (
     <div className="app">
       <header className="app__header">
-        <h1>Mosaic</h1>
+        <div className="app__header-row">
+          <h1>Mosaic</h1>
+          <nav className="app__nav" aria-label="Pages">
+            <a href="#/" aria-current={page === 'mosaic' ? 'page' : undefined}>
+              Mosaic
+            </a>
+            <a
+              href="#/parts-info"
+              aria-current={page === 'parts-info' ? 'page' : undefined}
+            >
+              Parts Info
+            </a>
+          </nav>
+        </div>
         <p className="muted small">Turn a photo into a buildable LEGO brick mosaic</p>
       </header>
 
-      {state.error && (
-        <p className="note note--warn app__error" role="status">
-          {state.error}{' '}
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'setError', error: null })}
-          >
-            Dismiss
-          </button>
-        </p>
-      )}
-
-      {/* Announcements for anyone not watching the canvas. */}
-      <p className="visually-hidden" role="status" aria-live="polite">
-        {derived.tiling
-          ? `${derived.bom?.totals.pieces.toLocaleString() ?? 0} bricks in ${
-              derived.bom?.totals.distinctColors ?? 0
-            } colors, ${derived.size.widthIn.toFixed(1)} by ${derived.size.heightIn.toFixed(1)} inches`
-          : 'No mosaic yet'}
-      </p>
-
-      {narrow ? (
-        <>
-          <nav className="tabs" aria-label="Sections">
-            {TABS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                aria-pressed={tab === option.value}
-                onClick={() => setTab(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </nav>
-          <main className="app__single">
-            {tab === 'source' && (
-              <SourcePanel state={state} dispatch={dispatch} setCrop={setCrop} />
-            )}
-            {tab === 'settings' && (
-              <>
-                <MosaicSettings state={state} dispatch={dispatch} derived={derived} />
-                <AdjustPanel state={state} dispatch={dispatch} derived={derived} />
-                <PalettePanel state={state} dispatch={dispatch} derived={derived} />
-                <AlgorithmPanel
-                  state={state}
-                  dispatch={dispatch}
-                  busy={busy}
-                  stale={stale}
-                  rebuild={rebuild}
-                />
-              </>
-            )}
-            {tab === 'preview' && preview}
-            {tab === 'parts' && right}
-          </main>
-        </>
-      ) : (
-        <main
-          className="app__columns"
-          style={{
-            gridTemplateColumns: `${leftWidth}px 5px minmax(0, 1fr) 5px ${rightWidth}px`,
-          }}
-        >
-          <div className="app__rail">{left}</div>
-          <ColumnResizer label="Resize left panel" onDrag={growLeft} />
-          {preview}
-          <ColumnResizer label="Resize right panel" onDrag={growRight} />
-          <div className="app__rail">{right}</div>
+      {page === 'parts-info' ? (
+        <main className="app__page">
+          <PartsInfoPage />
         </main>
+      ) : (
+        <>
+          {state.error && (
+            <p className="note note--warn app__error" role="status">
+              {state.error}{' '}
+              <button
+                type="button"
+                onClick={() => dispatch({ type: 'setError', error: null })}
+              >
+                Dismiss
+              </button>
+            </p>
+          )}
+
+          {/* Announcements for anyone not watching the canvas. */}
+          <p className="visually-hidden" role="status" aria-live="polite">
+            {derived.tiling
+              ? `${derived.bom?.totals.pieces.toLocaleString() ?? 0} bricks in ${
+                  derived.bom?.totals.distinctColors ?? 0
+                } colors, ${derived.size.widthIn.toFixed(1)} by ${derived.size.heightIn.toFixed(1)} inches`
+              : 'No mosaic yet'}
+          </p>
+
+          {narrow ? (
+            <>
+              <nav className="tabs" aria-label="Sections">
+                {TABS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={tab === option.value}
+                    onClick={() => setTab(option.value)}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </nav>
+              <main className="app__single">
+                {tab === 'source' && (
+                  <SourcePanel state={state} dispatch={dispatch} setCrop={setCrop} />
+                )}
+                {tab === 'settings' && (
+                  <>
+                    <MosaicSettings state={state} dispatch={dispatch} derived={derived} />
+                    <AdjustPanel state={state} dispatch={dispatch} derived={derived} />
+                    <PalettePanel state={state} dispatch={dispatch} derived={derived} />
+                    <AlgorithmPanel
+                      state={state}
+                      dispatch={dispatch}
+                      busy={busy}
+                      stale={stale}
+                      rebuild={rebuild}
+                    />
+                  </>
+                )}
+                {tab === 'preview' && preview}
+                {tab === 'parts' && right}
+              </main>
+            </>
+          ) : (
+            <main
+              className="app__columns"
+              style={{
+                gridTemplateColumns: `${leftWidth}px 5px minmax(0, 1fr) 5px ${rightWidth}px`,
+              }}
+            >
+              <div className="app__rail">{left}</div>
+              <ColumnResizer label="Resize left panel" onDrag={growLeft} />
+              {preview}
+              <ColumnResizer label="Resize right panel" onDrag={growRight} />
+              <div className="app__rail">{right}</div>
+            </main>
+          )}
+        </>
       )}
     </div>
   );
